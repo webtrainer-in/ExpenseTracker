@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { LogOut, Settings, User } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
+import { useLocation } from "wouter";
 
 interface UserHeaderProps {
   user: {
@@ -23,10 +24,12 @@ interface UserHeaderProps {
 }
 
 export function UserHeader({ user, onLogout }: UserHeaderProps) {
+  const [, setLocation] = useLocation();
+
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="flex h-16 items-center justify-between px-6">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 cursor-pointer" onClick={() => setLocation("/")}>
           <h1 className="text-xl font-bold">ExpenseTracker</h1>
           {user.role === "admin" && (
             <Badge variant="outline" className="text-xs">
@@ -61,11 +64,17 @@ export function UserHeader({ user, onLogout }: UserHeaderProps) {
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuLabel>My Account</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem data-testid="menu-profile">
+              <DropdownMenuItem
+                onClick={() => setLocation("/profile")}
+                data-testid="menu-profile"
+              >
                 <User className="mr-2 h-4 w-4" />
                 <span>Profile</span>
               </DropdownMenuItem>
-              <DropdownMenuItem data-testid="menu-settings">
+              <DropdownMenuItem
+                onClick={() => setLocation("/profile")}
+                data-testid="menu-settings"
+              >
                 <Settings className="mr-2 h-4 w-4" />
                 <span>Settings</span>
               </DropdownMenuItem>
