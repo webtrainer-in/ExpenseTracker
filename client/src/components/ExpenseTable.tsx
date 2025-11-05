@@ -8,14 +8,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { CategoryBadge, type ExpenseCategory } from "./CategoryBadge";
+import { CategoryBadge } from "./CategoryBadge";
 import { Pencil, Trash2 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 export interface Expense {
   id: string;
   date: string;
-  category: ExpenseCategory;
+  category: string;
   description: string;
   amount: number;
   user?: {

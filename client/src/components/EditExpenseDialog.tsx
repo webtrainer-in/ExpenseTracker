@@ -25,7 +25,7 @@ interface Expense {
   amount: string | number;
   category: string;
   description: string;
-  date: string;
+  date: string | Date;
 }
 
 interface EditExpenseDialogProps {
