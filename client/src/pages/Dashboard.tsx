@@ -146,6 +146,37 @@ export default function Dashboard() {
   const lastMonth = stats?.lastMonth || 0;
   const percentageChange = lastMonth > 0 ? ((thisMonth - lastMonth) / lastMonth * 100).toFixed(1) : "0";
 
+  // Prepare monthly chart data
+  const monthlyData = expenses.reduce((acc: any[], expense) => {
+    const date = new Date(expense.date);
+    const monthYear = date.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+    const existing = acc.find((item) => item.month === monthYear);
+    
+    if (existing) {
+      existing.amount += parseFloat(expense.amount);
+    } else {
+      acc.push({ month: monthYear, amount: parseFloat(expense.amount) });
+    }
+    return acc;
+  }, []).sort((a, b) => {
+    const dateA = new Date(a.month);
+    const dateB = new Date(b.month);
+    return dateA.getTime() - dateB.getTime();
+  }).slice(-6); // Last 6 months
+
+  // Prepare category chart data
+  const categoryTotals = expenses.reduce((acc: any, expense) => {
+    acc[expense.category] = (acc[expense.category] || 0) + parseFloat(expense.amount);
+    return acc;
+  }, {});
+  
+  const total = Object.values(categoryTotals).reduce((sum: number, amount: any) => sum + amount, 0) as number;
+  const categoryData = Object.entries(categoryTotals).map(([category, amount]: [string, any]) => ({
+    category: category.charAt(0).toUpperCase() + category.slice(1),
+    amount,
+    percentage: total > 0 ? Math.round((amount / total) * 100) : 0,
+  }));
+
   if (authLoading || !user) {
     return null;
   }
@@ -198,6 +229,21 @@ export default function Dashboard() {
             testId="stat-last-month"
           />
         </div>
+
+        {expenses.length > 0 && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <ExpenseChart
+              type="monthly"
+              data={monthlyData}
+              title="Monthly Spending Trend"
+            />
+            <ExpenseChart
+              type="category"
+              data={categoryData}
+              title="Spending by Category"
+            />
+          </div>
+        )}
 
         <div className="space-y-4">
           <div className="flex items-center justify-between">
