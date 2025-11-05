@@ -9,6 +9,7 @@ import { StatCard } from "@/components/StatCard";
 import { ExpenseTable } from "@/components/ExpenseTable";
 import { ExpenseChart } from "@/components/ExpenseChart";
 import { AddExpenseDialog } from "@/components/AddExpenseDialog";
+import { EditExpenseDialog } from "@/components/EditExpenseDialog";
 import { FilterBar } from "@/components/FilterBar";
 import { Button } from "@/components/ui/button";
 import { DollarSign, Calendar, TrendingUp, Plus } from "lucide-react";
@@ -22,6 +23,8 @@ export default function Dashboard() {
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
   const { toast } = useToast();
   const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [selectedExpense, setSelectedExpense] = useState<ExpenseWithUser | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
 
@@ -83,6 +86,39 @@ export default function Dashboard() {
       toast({
         title: "Error",
         description: "Failed to create expense",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Update expense mutation
+  const updateExpenseMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: any }) => {
+      await apiRequest("PATCH", `/api/expenses/${id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/expenses"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
+      toast({
+        title: "Success",
+        description: "Expense updated successfully",
+      });
+    },
+    onError: (error: Error) => {
+      if (isUnauthorizedError(error)) {
+        toast({
+          title: "Unauthorized",
+          description: "You are logged out. Logging in again...",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.href = "/api/login";
+        }, 500);
+        return;
+      }
+      toast({
+        title: "Error",
+        description: "Failed to update expense",
         variant: "destructive",
       });
     },
@@ -273,7 +309,13 @@ export default function Dashboard() {
             <ExpenseTable
               expenses={tableExpenses}
               showUser={isAdmin}
-              onEdit={(expense) => console.log("Edit:", expense)}
+              onEdit={(expense) => {
+                const fullExpense = expenses.find((e) => e.id === expense.id);
+                if (fullExpense) {
+                  setSelectedExpense(fullExpense);
+                  setEditDialogOpen(true);
+                }
+              }}
               onDelete={(id) => deleteExpenseMutation.mutate(id)}
             />
           )}
@@ -284,6 +326,13 @@ export default function Dashboard() {
         open={addDialogOpen}
         onOpenChange={setAddDialogOpen}
         onSubmit={(expense) => createExpenseMutation.mutate(expense)}
+      />
+
+      <EditExpenseDialog
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        expense={selectedExpense}
+        onSubmit={(id, data) => updateExpenseMutation.mutate({ id, data })}
       />
     </div>
   );
