@@ -41,10 +41,11 @@ export default function Dashboard() {
   }, [isAuthenticated, authLoading, toast]);
 
   // Fetch expenses
+  const expensesUrl = selectedCategory === "all"
+    ? "/api/expenses"
+    : `/api/expenses?category=${selectedCategory}`;
   const { data: expenses = [], isLoading: expensesLoading } = useQuery<ExpenseWithUser[]>({
-    queryKey: selectedCategory === "all" 
-      ? ["/api/expenses"] 
-      : ["/api/expenses", `category=${selectedCategory}`],
+    queryKey: [expensesUrl],
     enabled: isAuthenticated,
   });
 
