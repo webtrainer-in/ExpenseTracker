@@ -58,7 +58,16 @@ Preferred communication style: Simple, everyday language.
 **API Structure**:
 - `/api/auth/*` - Authentication endpoints (user info, login/logout)
 - `/api/expenses` - CRUD operations for expenses with filtering
-- Role-based data access: admins see all expenses with user info, members see only their own
+  - GET: Admins see all expenses with user info, members see only their own
+  - POST: Create new expense
+  - PATCH: Update expense (admins can edit any expense, members only their own)
+  - DELETE: Delete expense (admins can delete any expense, members only their own)
+- `/api/categories` - Category management (admin-only mutations)
+  - GET: List all categories (authenticated users)
+  - POST: Create category (admin only)
+  - PATCH: Update category (admin only)
+  - DELETE: Delete category (admin only)
+- `/api/stats` - Expense statistics (admins see all users, members see only their own)
 
 ### Data Storage
 
@@ -77,14 +86,33 @@ Preferred communication style: Simple, everyday language.
 3. **expenses** - Expense records
    - Primary key: id (UUID, auto-generated)
    - Foreign key: userId (references users, cascade delete)
-   - Fields: amount (decimal 10,2), category (varchar 50), description (text), date (timestamp)
+   - Fields: amount (decimal 10,2), category (varchar 50, lowercase), description (text), date (timestamp)
    - Timestamps: createdAt, updatedAt
+   - Note: Categories stored in lowercase for consistency
+
+4. **categories** - Expense categories (admin-managed)
+   - Primary key: id (UUID, auto-generated)
+   - Fields: name (varchar 50, proper casing), icon (varchar 50, Lucide icon name)
+   - Timestamps: createdAt, updatedAt
+   - Default categories seeded on app startup if table is empty
 
 **Data Access Patterns**:
 - Storage abstraction layer (IStorage interface) for all database operations
 - Query filtering: by category, date range
 - Aggregation queries for statistics (total, monthly, by-user)
 - Join queries for admin view (expenses with user information)
+- Category normalization: expenses store lowercase categories, lookup via case-insensitive comparison
+
+**Admin Features**:
+- **Category Management**: Admins can create, rename, and delete expense categories
+  - Categories support custom Lucide React icons
+  - Default categories seeded on startup: Groceries, Utilities, Transportation, Entertainment, Dining, Healthcare, Education, Travel, Bills, Other
+  - Category changes reflected immediately across all expense forms and filters
+- **Expense Editing**: Admins can edit expenses submitted by any family member
+  - User ownership preserved (only expense data is modified)
+  - EditExpenseDialog normalizes categories to lowercase for consistency
+  - Cache invalidation uses predicate-based approach to refresh all filtered views
+- **Full Visibility**: Admins see all family expenses with user attribution in expense tables
 
 ### External Dependencies
 
