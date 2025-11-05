@@ -1,10 +1,13 @@
 import {
   users,
   expenses,
+  categories,
   type User,
   type UpsertUser,
   type Expense,
   type InsertExpense,
+  type Category,
+  type InsertCategory,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, gte, lte, sql } from "drizzle-orm";
@@ -13,6 +16,14 @@ export interface IStorage {
   // User operations (required for Replit Auth)
   getUser(id: string): Promise<User | undefined>;
   upsertUser(user: UpsertUser): Promise<User>;
+
+  // Category operations
+  getAllCategories(): Promise<Category[]>;
+  getCategory(id: string): Promise<Category | undefined>;
+  createCategory(category: InsertCategory): Promise<Category>;
+  updateCategory(id: string, category: Partial<InsertCategory>): Promise<Category>;
+  deleteCategory(id: string): Promise<void>;
+  seedDefaultCategories(): Promise<void>;
 
   // Expense operations
   createExpense(expense: InsertExpense): Promise<Expense>;
@@ -62,6 +73,60 @@ export class DatabaseStorage implements IStorage {
       })
       .returning();
     return user;
+  }
+
+  async getAllCategories(): Promise<Category[]> {
+    return await db.select().from(categories).orderBy(categories.name);
+  }
+
+  async getCategory(id: string): Promise<Category | undefined> {
+    const [category] = await db.select().from(categories).where(eq(categories.id, id));
+    return category;
+  }
+
+  async createCategory(categoryData: InsertCategory): Promise<Category> {
+    const [category] = await db
+      .insert(categories)
+      .values(categoryData)
+      .returning();
+    return category;
+  }
+
+  async updateCategory(id: string, categoryData: Partial<InsertCategory>): Promise<Category> {
+    const [category] = await db
+      .update(categories)
+      .set({ ...categoryData, updatedAt: new Date() })
+      .where(eq(categories.id, id))
+      .returning();
+    return category;
+  }
+
+  async deleteCategory(id: string): Promise<void> {
+    await db.delete(categories).where(eq(categories.id, id));
+  }
+
+  async seedDefaultCategories(): Promise<void> {
+    const existingCategories = await this.getAllCategories();
+    if (existingCategories.length > 0) {
+      return;
+    }
+
+    const defaultCategories = [
+      { name: "Groceries", icon: "shopping-cart" },
+      { name: "Utilities", icon: "zap" },
+      { name: "Transportation", icon: "car" },
+      { name: "Entertainment", icon: "film" },
+      { name: "Dining", icon: "utensils" },
+      { name: "Healthcare", icon: "heart" },
+      { name: "Education", icon: "graduation-cap" },
+      { name: "Travel", icon: "plane" },
+      { name: "Bills", icon: "home" },
+      { name: "Other", icon: "more-horizontal" },
+    ];
+
+    for (const category of defaultCategories) {
+      await this.createCategory(category);
+    }
   }
 
   async createExpense(expenseData: InsertExpense): Promise<Expense> {

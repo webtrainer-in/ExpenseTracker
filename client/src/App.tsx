@@ -7,6 +7,7 @@ import { ThemeProvider } from "@/components/ThemeProvider";
 import { useAuth } from "@/hooks/useAuth";
 import Dashboard from "@/pages/Dashboard";
 import Profile from "@/pages/Profile";
+import Categories from "@/pages/Categories";
 import Landing from "@/pages/Landing";
 import NotFound from "@/pages/not-found";
 
@@ -21,6 +22,7 @@ function Router() {
         <>
           <Route path="/" component={Dashboard} />
           <Route path="/profile" component={Profile} />
+          <Route path="/categories" component={Categories} />
         </>
       )}
       <Route component={NotFound} />

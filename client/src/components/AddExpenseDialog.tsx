@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -18,24 +18,31 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { type ExpenseCategory } from "./CategoryBadge";
+import { useCategories } from "@/hooks/useCategories";
 
 interface AddExpenseDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSubmit?: (expense: {
     amount: number;
-    category: ExpenseCategory;
+    category: string;
     description: string;
     date: string;
   }) => void;
 }
 
 export function AddExpenseDialog({ open, onOpenChange, onSubmit }: AddExpenseDialogProps) {
+  const { data: categories = [] } = useCategories();
   const [amount, setAmount] = useState("");
-  const [category, setCategory] = useState<ExpenseCategory>("groceries");
+  const [category, setCategory] = useState("");
   const [description, setDescription] = useState("");
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
+
+  useEffect(() => {
+    if (categories.length > 0 && !category) {
+      setCategory(categories[0].name.toLowerCase());
+    }
+  }, [categories, category]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -85,22 +92,17 @@ export function AddExpenseDialog({ open, onOpenChange, onSubmit }: AddExpenseDia
               <Label htmlFor="category">Category</Label>
               <Select
                 value={category}
-                onValueChange={(value) => setCategory(value as ExpenseCategory)}
+                onValueChange={(value) => setCategory(value)}
               >
                 <SelectTrigger id="category" data-testid="select-category">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="groceries">Groceries</SelectItem>
-                  <SelectItem value="utilities">Utilities</SelectItem>
-                  <SelectItem value="transportation">Transportation</SelectItem>
-                  <SelectItem value="entertainment">Entertainment</SelectItem>
-                  <SelectItem value="dining">Dining</SelectItem>
-                  <SelectItem value="healthcare">Healthcare</SelectItem>
-                  <SelectItem value="education">Education</SelectItem>
-                  <SelectItem value="travel">Travel</SelectItem>
-                  <SelectItem value="bills">Bills</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
+                  {categories.map((cat) => (
+                    <SelectItem key={cat.id} value={cat.name.toLowerCase()}>
+                      {cat.name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

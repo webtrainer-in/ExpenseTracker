@@ -36,6 +36,15 @@ export const users = pgTable("users", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Categories table
+export const categories = pgTable("categories", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name", { length: 50 }).notNull().unique(),
+  icon: varchar("icon", { length: 50 }).notNull().default("tag"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Expenses table
 export const expenses = pgTable(
   "expenses",
@@ -68,6 +77,10 @@ export const expensesRelations = relations(expenses, ({ one }) => ({
   }),
 }));
 
+export const categoriesRelations = relations(categories, ({ many }) => ({
+  expenses: many(expenses),
+}));
+
 // Zod schemas for validation
 export const insertExpenseSchema = createInsertSchema(expenses).omit({
   id: true,
@@ -83,8 +96,18 @@ export const upsertUserSchema = createInsertSchema(users).omit({
   updatedAt: true,
 });
 
+export const insertCategorySchema = createInsertSchema(categories).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const updateCategorySchema = insertCategorySchema.partial();
+
 // TypeScript types
 export type UpsertUser = z.infer<typeof upsertUserSchema>;
 export type User = typeof users.$inferSelect;
 export type Expense = typeof expenses.$inferSelect;
 export type InsertExpense = z.infer<typeof insertExpenseSchema>;
+export type Category = typeof categories.$inferSelect;
+export type InsertCategory = z.infer<typeof insertCategorySchema>;

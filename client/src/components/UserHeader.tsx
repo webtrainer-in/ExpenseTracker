@@ -9,7 +9,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { LogOut, Settings, User } from "lucide-react";
+import { LogOut, Settings, User, Tags } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
 import { useLocation } from "wouter";
 
@@ -78,6 +78,18 @@ export function UserHeader({ user, onLogout }: UserHeaderProps) {
                 <Settings className="mr-2 h-4 w-4" />
                 <span>Settings</span>
               </DropdownMenuItem>
+              {user.role === "admin" && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() => setLocation("/categories")}
+                    data-testid="menu-categories"
+                  >
+                    <Tags className="mr-2 h-4 w-4" />
+                    <span>Manage Categories</span>
+                  </DropdownMenuItem>
+                </>
+              )}
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 onClick={onLogout}

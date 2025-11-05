@@ -1,38 +1,18 @@
 import { Badge } from "@/components/ui/badge";
-import { ShoppingCart, Home, Car, Film, Utensils, Heart, GraduationCap, Plane, Zap, MoreHorizontal } from "lucide-react";
-
-export type ExpenseCategory =
-  | "groceries"
-  | "utilities"
-  | "transportation"
-  | "entertainment"
-  | "dining"
-  | "healthcare"
-  | "education"
-  | "travel"
-  | "bills"
-  | "other";
-
-const categoryConfig: Record<ExpenseCategory, { label: string; icon: React.ElementType }> = {
-  groceries: { label: "Groceries", icon: ShoppingCart },
-  utilities: { label: "Utilities", icon: Zap },
-  transportation: { label: "Transportation", icon: Car },
-  entertainment: { label: "Entertainment", icon: Film },
-  dining: { label: "Dining", icon: Utensils },
-  healthcare: { label: "Healthcare", icon: Heart },
-  education: { label: "Education", icon: GraduationCap },
-  travel: { label: "Travel", icon: Plane },
-  bills: { label: "Bills", icon: Home },
-  other: { label: "Other", icon: MoreHorizontal },
-};
+import { getIconForCategory } from "@/lib/iconMap";
+import { useCategories } from "@/hooks/useCategories";
 
 interface CategoryBadgeProps {
-  category: ExpenseCategory;
+  category: string;
   testId?: string;
 }
 
 export function CategoryBadge({ category, testId }: CategoryBadgeProps) {
-  const { label, icon: Icon } = categoryConfig[category];
+  const { data: categories = [] } = useCategories();
+  const categoryData = categories.find((c) => c.name.toLowerCase() === category.toLowerCase());
+  
+  const Icon = categoryData ? getIconForCategory(categoryData.icon) : getIconForCategory("tag");
+  const label = categoryData?.name || category;
 
   return (
     <Badge variant="outline" className="gap-1.5" data-testid={testId}>
