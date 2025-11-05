@@ -50,12 +50,15 @@ function updateUserSession(
 }
 
 async function upsertUser(claims: any) {
+  const existingUser = await storage.getUser(claims["sub"]);
+  
   await storage.upsertUser({
     id: claims["sub"],
     email: claims["email"],
     firstName: claims["first_name"],
     lastName: claims["last_name"],
     profileImageUrl: claims["profile_image_url"],
+    role: existingUser?.role,
   });
 }
 
