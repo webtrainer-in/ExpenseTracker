@@ -33,20 +33,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const { category, startDate, endDate } = req.query;
 
-      // Admin can see all expenses, members see only their own
-      const expenses = user.role === "admin"
-        ? await storage.getAllExpenses({
-            category: category as string,
-            startDate: startDate ? new Date(startDate as string) : undefined,
-            endDate: endDate ? new Date(endDate as string) : undefined,
-          })
-        : await storage.getUserExpenses(userId, {
-            category: category as string,
-            startDate: startDate ? new Date(startDate as string) : undefined,
-            endDate: endDate ? new Date(endDate as string) : undefined,
-          });
-
-      res.json(expenses);
+      // Admin can see all expenses with user info, members see only their own
+      if (user.role === "admin") {
+        const allExpenses = await storage.getAllExpenses({
+          category: category as string,
+          startDate: startDate ? new Date(startDate as string) : undefined,
+          endDate: endDate ? new Date(endDate as string) : undefined,
+        });
+        res.json(allExpenses);
+      } else {
+        const userExpenses = await storage.getUserExpenses(userId, {
+          category: category as string,
+          startDate: startDate ? new Date(startDate as string) : undefined,
+          endDate: endDate ? new Date(endDate as string) : undefined,
+        });
+        // For members, return expenses without user field (matches ExpenseWithUser interface)
+        res.json(userExpenses.map(exp => ({ ...exp, user })));
+      }
     } catch (error) {
       console.error("Error fetching expenses:", error);
       res.status(500).json({ message: "Failed to fetch expenses" });
