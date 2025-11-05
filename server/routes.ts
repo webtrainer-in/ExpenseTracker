@@ -77,7 +77,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const validatedData = updateCategorySchema.parse(req.body);
+      
+      // Update the category first to ensure it succeeds
       const updatedCategory = await storage.updateCategory(id, validatedData);
+      
+      // Only after successful category update, cascade the change to expenses
+      if (validatedData.name && validatedData.name !== category.name) {
+        await storage.updateExpenseCategories(category.name, validatedData.name);
+      }
+      
       res.json(updatedCategory);
     } catch (error) {
       if (error instanceof z.ZodError) {

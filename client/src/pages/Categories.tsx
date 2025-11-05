@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
@@ -171,12 +171,17 @@ export default function Categories() {
     }
   };
 
+  useEffect(() => {
+    if (!authLoading && user && user.role !== "admin") {
+      navigate("/");
+    }
+  }, [authLoading, user, navigate]);
+
   if (authLoading || !user) {
     return null;
   }
 
   if (user.role !== "admin") {
-    navigate("/");
     return null;
   }
 

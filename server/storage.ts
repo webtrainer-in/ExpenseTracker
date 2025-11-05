@@ -40,6 +40,7 @@ export interface IStorage {
   }): Promise<Array<Expense & { user: User }>>;
   updateExpense(id: string, expense: Partial<InsertExpense>): Promise<Expense>;
   deleteExpense(id: string): Promise<void>;
+  updateExpenseCategories(oldCategory: string, newCategory: string): Promise<void>;
 
   // Analytics operations
   getUserStats(userId: string): Promise<{
@@ -217,6 +218,13 @@ export class DatabaseStorage implements IStorage {
 
   async deleteExpense(id: string): Promise<void> {
     await db.delete(expenses).where(eq(expenses.id, id));
+  }
+
+  async updateExpenseCategories(oldCategory: string, newCategory: string): Promise<void> {
+    await db
+      .update(expenses)
+      .set({ category: newCategory.toLowerCase() })
+      .where(eq(expenses.category, oldCategory.toLowerCase()));
   }
 
   async getUserStats(userId: string): Promise<{
