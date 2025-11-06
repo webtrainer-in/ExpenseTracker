@@ -12,7 +12,8 @@ import { AddExpenseDialog } from "@/components/AddExpenseDialog";
 import { EditExpenseDialog } from "@/components/EditExpenseDialog";
 import { FilterBar } from "@/components/FilterBar";
 import { Button } from "@/components/ui/button";
-import { DollarSign, Calendar, TrendingUp, Plus } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { DollarSign, Calendar, TrendingUp, Plus, FileText, BarChart3 } from "lucide-react";
 import type { Expense, User } from "@shared/schema";
 
 interface ExpenseWithUser extends Expense {
@@ -256,85 +257,104 @@ export default function Dashboard() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <StatCard
-            title={isAdmin ? "Total Family Spending" : "Total Spent"}
-            value={`$${totalSpent.toFixed(2)}`}
-            icon={DollarSign}
-            testId="stat-total"
-          />
-          <StatCard
-            title="This Month"
-            value={`$${thisMonth.toFixed(2)}`}
-            icon={Calendar}
-            trend={{
-              value: `${Math.abs(parseFloat(percentageChange))}% from last month`,
-              isPositive: thisMonth <= lastMonth,
-            }}
-            testId="stat-month"
-          />
-          <StatCard
-            title="Last Month"
-            value={`$${lastMonth.toFixed(2)}`}
-            icon={TrendingUp}
-            testId="stat-last-month"
-          />
-        </div>
+        <Tabs defaultValue="data-entry" className="space-y-6">
+          <TabsList data-testid="tabs-main">
+            <TabsTrigger value="data-entry" data-testid="tab-data-entry">
+              <FileText className="h-4 w-4 mr-2" />
+              Data Entry
+            </TabsTrigger>
+            <TabsTrigger value="dashboard" data-testid="tab-dashboard">
+              <BarChart3 className="h-4 w-4 mr-2" />
+              Dashboard
+            </TabsTrigger>
+          </TabsList>
 
-        {expenses.length > 0 && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <ExpenseChart
-              type="monthly"
-              data={monthlyData}
-              title="Monthly Spending Trend"
+          <TabsContent value="data-entry" className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xl font-semibold">
+                {isAdmin ? "All Family Expenses" : "My Expenses"}
+              </h3>
+              <Button
+                onClick={() => setAddDialogOpen(true)}
+                data-testid="button-add-expense"
+                disabled={createExpenseMutation.isPending}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add Expense
+              </Button>
+            </div>
+
+            <FilterBar
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
+              selectedCategory={selectedCategory}
+              onCategoryChange={setSelectedCategory}
             />
-            <ExpenseChart
-              type="category"
-              data={categoryData}
-              title="Spending by Category"
-            />
-          </div>
-        )}
 
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-xl font-semibold">
-              {isAdmin ? "All Family Expenses" : "My Expenses"}
-            </h3>
-            <Button
-              onClick={() => setAddDialogOpen(true)}
-              data-testid="button-add-expense"
-              disabled={createExpenseMutation.isPending}
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Add Expense
-            </Button>
-          </div>
+            {expensesLoading ? (
+              <div className="text-center py-8 text-muted-foreground">Loading expenses...</div>
+            ) : (
+              <ExpenseTable
+                expenses={tableExpenses}
+                showUser={isAdmin}
+                onEdit={(expense) => {
+                  const fullExpense = expenses.find((e) => e.id === expense.id);
+                  if (fullExpense) {
+                    setSelectedExpense(fullExpense);
+                    setEditDialogOpen(true);
+                  }
+                }}
+                onDelete={(id) => deleteExpenseMutation.mutate(id)}
+              />
+            )}
+          </TabsContent>
 
-          <FilterBar
-            searchQuery={searchQuery}
-            onSearchChange={setSearchQuery}
-            selectedCategory={selectedCategory}
-            onCategoryChange={setSelectedCategory}
-          />
+          <TabsContent value="dashboard" className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <StatCard
+                title={isAdmin ? "Total Family Spending" : "Total Spent"}
+                value={`$${totalSpent.toFixed(2)}`}
+                icon={DollarSign}
+                testId="stat-total"
+              />
+              <StatCard
+                title="This Month"
+                value={`$${thisMonth.toFixed(2)}`}
+                icon={Calendar}
+                trend={{
+                  value: `${Math.abs(parseFloat(percentageChange))}% from last month`,
+                  isPositive: thisMonth <= lastMonth,
+                }}
+                testId="stat-month"
+              />
+              <StatCard
+                title="Last Month"
+                value={`$${lastMonth.toFixed(2)}`}
+                icon={TrendingUp}
+                testId="stat-last-month"
+              />
+            </div>
 
-          {expensesLoading ? (
-            <div className="text-center py-8 text-muted-foreground">Loading expenses...</div>
-          ) : (
-            <ExpenseTable
-              expenses={tableExpenses}
-              showUser={isAdmin}
-              onEdit={(expense) => {
-                const fullExpense = expenses.find((e) => e.id === expense.id);
-                if (fullExpense) {
-                  setSelectedExpense(fullExpense);
-                  setEditDialogOpen(true);
-                }
-              }}
-              onDelete={(id) => deleteExpenseMutation.mutate(id)}
-            />
-          )}
-        </div>
+            {expenses.length > 0 ? (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <ExpenseChart
+                  type="monthly"
+                  data={monthlyData}
+                  title="Monthly Spending Trend"
+                />
+                <ExpenseChart
+                  type="category"
+                  data={categoryData}
+                  title="Spending by Category"
+                />
+              </div>
+            ) : (
+              <div className="text-center py-12 text-muted-foreground">
+                No expense data available yet. Add some expenses to see charts and insights.
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
       </main>
 
       <AddExpenseDialog
