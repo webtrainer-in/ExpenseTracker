@@ -246,22 +246,11 @@ export default function Dashboard() {
       />
 
       <main className="max-w-7xl mx-auto p-6 space-y-8">
-        <div>
-          <h2 className="text-3xl font-bold mb-2">
-            {isAdmin ? "Admin Dashboard" : "My Dashboard"}
-          </h2>
-          <p className="text-muted-foreground">
-            {isAdmin
-              ? "Overview of family expenses and spending trends"
-              : "Track and manage your personal expenses"}
-          </p>
-        </div>
-
         <Tabs defaultValue="data-entry" className="space-y-6">
           <TabsList data-testid="tabs-main">
             <TabsTrigger value="data-entry" data-testid="tab-data-entry">
               <FileText className="h-4 w-4 mr-2" />
-              Data Entry
+              Expense Book
             </TabsTrigger>
             <TabsTrigger value="dashboard" data-testid="tab-dashboard">
               <BarChart3 className="h-4 w-4 mr-2" />
