@@ -2,12 +2,15 @@ import {
   users,
   expenses,
   categories,
+  settings,
   type User,
   type UpsertUser,
   type Expense,
   type InsertExpense,
   type Category,
   type InsertCategory,
+  type Settings,
+  type UpdateSettings,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, gte, lte, sql } from "drizzle-orm";
@@ -16,6 +19,10 @@ export interface IStorage {
   // User operations (required for Replit Auth)
   getUser(id: string): Promise<User | undefined>;
   upsertUser(user: UpsertUser): Promise<User>;
+
+  // Settings operations
+  getSettings(): Promise<Settings>;
+  updateSettings(settingsData: UpdateSettings): Promise<Settings>;
 
   // Category operations
   getAllCategories(): Promise<Category[]>;
@@ -74,6 +81,27 @@ export class DatabaseStorage implements IStorage {
       })
       .returning();
     return user;
+  }
+
+  async getSettings(): Promise<Settings> {
+    const [result] = await db.select().from(settings).where(eq(settings.id, "default"));
+    if (!result) {
+      const [newSettings] = await db
+        .insert(settings)
+        .values({ id: "default", currency: "USD" })
+        .returning();
+      return newSettings;
+    }
+    return result;
+  }
+
+  async updateSettings(settingsData: UpdateSettings): Promise<Settings> {
+    const [result] = await db
+      .update(settings)
+      .set({ ...settingsData, updatedAt: new Date() })
+      .where(eq(settings.id, "default"))
+      .returning();
+    return result;
   }
 
   async getAllCategories(): Promise<Category[]> {

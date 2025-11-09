@@ -45,6 +45,13 @@ export const categories = pgTable("categories", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Settings table
+export const settings = pgTable("settings", {
+  id: varchar("id").primaryKey().default("default"),
+  currency: varchar("currency", { length: 10 }).notNull().default("USD"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Expenses table
 export const expenses = pgTable(
   "expenses",
@@ -104,6 +111,13 @@ export const insertCategorySchema = createInsertSchema(categories).omit({
 
 export const updateCategorySchema = insertCategorySchema.partial();
 
+export const insertSettingsSchema = createInsertSchema(settings).omit({
+  id: true,
+  updatedAt: true,
+});
+
+export const updateSettingsSchema = insertSettingsSchema.partial();
+
 // TypeScript types
 export type UpsertUser = z.infer<typeof upsertUserSchema>;
 export type User = typeof users.$inferSelect;
@@ -111,3 +125,5 @@ export type Expense = typeof expenses.$inferSelect;
 export type InsertExpense = z.infer<typeof insertExpenseSchema>;
 export type Category = typeof categories.$inferSelect;
 export type InsertCategory = z.infer<typeof insertCategorySchema>;
+export type Settings = typeof settings.$inferSelect;
+export type UpdateSettings = z.infer<typeof updateSettingsSchema>;
