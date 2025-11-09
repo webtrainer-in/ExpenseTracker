@@ -54,6 +54,7 @@ Preferred communication style: Simple, everyday language.
 - PostgreSQL-backed session storage (connect-pg-simple)
 - Token management with access and refresh tokens
 - Session TTL: 7 days
+- Role assignment: New users inherit role from OIDC claims (if provided), existing users preserve their role to prevent accidental downgrades
 
 **API Structure**:
 - `/api/auth/*` - Authentication endpoints (user info, login/logout)
@@ -68,6 +69,9 @@ Preferred communication style: Simple, everyday language.
   - PATCH: Update category (admin only)
   - DELETE: Delete category (admin only)
 - `/api/stats` - Expense statistics (admins see all users, members see only their own)
+- `/api/settings` - Application settings (currency configuration)
+  - GET: Fetch settings (authenticated users)
+  - PATCH: Update settings (admin only)
 
 ### Data Storage
 
@@ -96,6 +100,12 @@ Preferred communication style: Simple, everyday language.
    - Timestamps: createdAt, updatedAt
    - Default categories seeded on app startup if table is empty
 
+5. **settings** - Application settings
+   - Primary key: id (text)
+   - Fields: currency (varchar 3, ISO currency code)
+   - Single-row table (id: "default")
+   - Auto-initialized with USD on first access
+
 **Data Access Patterns**:
 - Storage abstraction layer (IStorage interface) for all database operations
 - Query filtering: by category, date range
@@ -113,6 +123,11 @@ Preferred communication style: Simple, everyday language.
   - EditExpenseDialog normalizes categories to lowercase for consistency
   - Cache invalidation uses predicate-based approach to refresh all filtered views
 - **Full Visibility**: Admins see all family expenses with user attribution in expense tables
+- **Currency Configuration**: Admins can configure the application currency
+  - Accessible via Categories page (admin-only)
+  - Supported currencies: USD, EUR, GBP, INR, JPY, CAD, AUD
+  - Currency changes apply immediately across all components
+  - Updates: stat cards, expense tables, charts, and input dialogs
 
 ### External Dependencies
 
