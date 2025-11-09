@@ -41,9 +41,9 @@ export function ExpenseTable({ expenses, onEdit, onDelete, showUser = false }: E
           <TableRow>
             <TableHead>Date</TableHead>
             <TableHead>Category</TableHead>
+            <TableHead className="text-right">Amount</TableHead>
             <TableHead>Description</TableHead>
             {showUser && <TableHead>User</TableHead>}
-            <TableHead className="text-right">Amount</TableHead>
             <TableHead className="w-[100px]"></TableHead>
           </TableRow>
         </TableHeader>
@@ -72,6 +72,9 @@ export function ExpenseTable({ expenses, onEdit, onDelete, showUser = false }: E
                 <TableCell>
                   <CategoryBadge category={expense.category} />
                 </TableCell>
+                <TableCell className="text-right font-mono font-semibold">
+                  ${expense.amount.toFixed(2)}
+                </TableCell>
                 <TableCell>{expense.description}</TableCell>
                 {showUser && expense.user && (
                   <TableCell>
@@ -89,9 +92,6 @@ export function ExpenseTable({ expenses, onEdit, onDelete, showUser = false }: E
                     </div>
                   </TableCell>
                 )}
-                <TableCell className="text-right font-mono font-semibold">
-                  ${expense.amount.toFixed(2)}
-                </TableCell>
                 <TableCell>
                   <div
                     className="flex items-center gap-1 justify-end"
