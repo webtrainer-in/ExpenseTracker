@@ -27,7 +27,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { UserHeader } from "@/components/UserHeader";
-import { Plus, Pencil, Trash2, Tag } from "lucide-react";
+import { Plus, Pencil, Trash2, Tag, DollarSign } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { 
   Select,
@@ -36,6 +36,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useSettings } from "@/hooks/useSettings";
+import { CURRENCY_OPTIONS } from "@/lib/currency";
 
 const ICON_OPTIONS = [
   { value: "tag", label: "Tag" },
@@ -68,6 +70,28 @@ export default function Categories() {
 
   const { data: categories = [], isLoading } = useQuery<Category[]>({
     queryKey: ["/api/categories"],
+  });
+
+  const { data: settings, isLoading: settingsLoading } = useSettings();
+
+  const updateSettingsMutation = useMutation({
+    mutationFn: async (currency: string) => {
+      return await apiRequest("PATCH", "/api/settings", { currency });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/settings"] });
+      toast({
+        title: "Success",
+        description: "Currency updated successfully",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update currency",
+        variant: "destructive",
+      });
+    },
   });
 
   const createMutation = useMutation({
@@ -198,6 +222,52 @@ export default function Categories() {
       />
 
       <main className="max-w-7xl mx-auto p-6 space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-3xl font-bold mb-2">Settings</h2>
+            <p className="text-muted-foreground">
+              Configure your application preferences
+            </p>
+          </div>
+        </div>
+
+        <Card data-testid="card-currency-settings">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <DollarSign className="h-5 w-5 text-muted-foreground" />
+              <CardTitle>Currency</CardTitle>
+            </div>
+            <CardDescription>
+              Select your preferred currency for displaying expense amounts
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              <Label htmlFor="currency">Currency</Label>
+              <Select
+                value={settings?.currency || "USD"}
+                onValueChange={(value) => updateSettingsMutation.mutate(value)}
+                disabled={settingsLoading || updateSettingsMutation.isPending}
+              >
+                <SelectTrigger id="currency" data-testid="select-currency">
+                  <SelectValue placeholder="Select currency" />
+                </SelectTrigger>
+                <SelectContent>
+                  {CURRENCY_OPTIONS.map((currency) => (
+                    <SelectItem 
+                      key={currency.code} 
+                      value={currency.code}
+                      data-testid={`currency-${currency.code}`}
+                    >
+                      {currency.symbol} {currency.name} ({currency.code})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </CardContent>
+        </Card>
+
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-3xl font-bold mb-2">Manage Categories</h2>
