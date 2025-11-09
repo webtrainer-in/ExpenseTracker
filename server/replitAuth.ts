@@ -52,13 +52,23 @@ function updateUserSession(
 async function upsertUser(claims: any) {
   const existingUser = await storage.getUser(claims["sub"]);
   
+  let role: "admin" | "member" = "member";
+  
+  if (existingUser) {
+    role = existingUser.role as "admin" | "member";
+  } else if (claims["role"] === "admin") {
+    role = "admin";
+  } else if (claims["role"] === "member") {
+    role = "member";
+  }
+  
   await storage.upsertUser({
     id: claims["sub"],
     email: claims["email"],
     firstName: claims["first_name"],
     lastName: claims["last_name"],
     profileImageUrl: claims["profile_image_url"],
-    role: existingUser?.role,
+    role: role,
   });
 }
 
