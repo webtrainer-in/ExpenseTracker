@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
-import { insertExpenseSchema, insertCategorySchema, updateCategorySchema } from "@shared/schema";
+import { insertExpenseSchema, insertCategorySchema, updateCategorySchema, updateSettingsSchema } from "@shared/schema";
 import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -25,6 +25,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });
+    }
+  });
+
+  // Settings routes
+  app.get("/api/settings", isAuthenticated, async (req: any, res) => {
+    try {
+      const settings = await storage.getSettings();
+      res.json(settings);
+    } catch (error) {
+      console.error("Error fetching settings:", error);
+      res.status(500).json({ message: "Failed to fetch settings" });
+    }
+  });
+
+  app.patch("/api/settings", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+
+      if (!user || user.role !== "admin") {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+
+      const validatedData = updateSettingsSchema.parse(req.body);
+      const settings = await storage.updateSettings(validatedData);
+      res.json(settings);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid settings data", errors: error.errors });
+      }
+      console.error("Error updating settings:", error);
+      res.status(500).json({ message: "Failed to update settings" });
     }
   });
 
