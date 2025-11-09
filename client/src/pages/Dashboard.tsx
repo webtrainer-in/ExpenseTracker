@@ -15,6 +15,8 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DollarSign, Calendar, TrendingUp, Plus, FileText, BarChart3 } from "lucide-react";
 import type { Expense, User } from "@shared/schema";
+import { useSettings } from "@/hooks/useSettings";
+import { formatCurrency } from "@/lib/currency";
 
 interface ExpenseWithUser extends Expense {
   user: User;
@@ -58,6 +60,9 @@ export default function Dashboard() {
     queryKey: ["/api/stats"],
     enabled: isAuthenticated,
   });
+
+  // Fetch settings for currency
+  const { data: settings } = useSettings();
 
   // Create expense mutation
   const createExpenseMutation = useMutation({
@@ -286,6 +291,7 @@ export default function Dashboard() {
               <ExpenseTable
                 expenses={tableExpenses}
                 showUser={isAdmin}
+                currency={settings?.currency || "USD"}
                 onEdit={(expense) => {
                   const fullExpense = expenses.find((e) => e.id === expense.id);
                   if (fullExpense) {
@@ -302,13 +308,13 @@ export default function Dashboard() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <StatCard
                 title={isAdmin ? "Total Family Spending" : "Total Spent"}
-                value={`$${totalSpent.toFixed(2)}`}
+                value={formatCurrency(totalSpent, settings?.currency || "USD")}
                 icon={DollarSign}
                 testId="stat-total"
               />
               <StatCard
                 title="This Month"
-                value={`$${thisMonth.toFixed(2)}`}
+                value={formatCurrency(thisMonth, settings?.currency || "USD")}
                 icon={Calendar}
                 trend={{
                   value: `${Math.abs(parseFloat(percentageChange))}% from last month`,
@@ -318,7 +324,7 @@ export default function Dashboard() {
               />
               <StatCard
                 title="Last Month"
-                value={`$${lastMonth.toFixed(2)}`}
+                value={formatCurrency(lastMonth, settings?.currency || "USD")}
                 icon={TrendingUp}
                 testId="stat-last-month"
               />
@@ -330,11 +336,13 @@ export default function Dashboard() {
                   type="monthly"
                   data={monthlyData}
                   title="Monthly Spending Trend"
+                  currency={settings?.currency || "USD"}
                 />
                 <ExpenseChart
                   type="category"
                   data={categoryData}
                   title="Spending by Category"
+                  currency={settings?.currency || "USD"}
                 />
               </div>
             ) : (

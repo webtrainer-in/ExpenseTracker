@@ -12,6 +12,7 @@ import {
   Cell,
   Legend,
 } from "recharts";
+import { formatCurrency, getCurrencySymbol } from "@/lib/currency";
 
 interface MonthlyData {
   month: string;
@@ -28,6 +29,7 @@ interface ExpenseChartProps {
   type: "monthly" | "category";
   data: MonthlyData[] | CategoryData[];
   title: string;
+  currency?: string;
 }
 
 const COLORS = [
@@ -38,7 +40,7 @@ const COLORS = [
   "hsl(var(--chart-5))",
 ];
 
-export function ExpenseChart({ type, data, title }: ExpenseChartProps) {
+export function ExpenseChart({ type, data, title, currency = "USD" }: ExpenseChartProps) {
   return (
     <Card className="p-6">
       <h3 className="text-lg font-semibold mb-4">{title}</h3>
@@ -55,7 +57,7 @@ export function ExpenseChart({ type, data, title }: ExpenseChartProps) {
               <YAxis
                 tick={{ fill: "hsl(var(--muted-foreground))" }}
                 tickLine={false}
-                tickFormatter={(value) => `$${value}`}
+                tickFormatter={(value) => `${getCurrencySymbol(currency)}${value}`}
               />
               <Tooltip
                 contentStyle={{
@@ -63,7 +65,7 @@ export function ExpenseChart({ type, data, title }: ExpenseChartProps) {
                   border: "1px solid hsl(var(--border))",
                   borderRadius: "6px",
                 }}
-                formatter={(value: number) => [`$${value.toFixed(2)}`, "Amount"]}
+                formatter={(value: number) => [formatCurrency(value, currency), "Amount"]}
               />
               <Bar dataKey="amount" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
             </BarChart>
@@ -91,7 +93,7 @@ export function ExpenseChart({ type, data, title }: ExpenseChartProps) {
                   borderRadius: "6px",
                 }}
                 formatter={(value: number, name, props: any) => [
-                  `$${value.toFixed(2)} (${props.payload.percentage}%)`,
+                  `${formatCurrency(value, currency)} (${props.payload.percentage}%)`,
                   props.payload.category,
                 ]}
               />

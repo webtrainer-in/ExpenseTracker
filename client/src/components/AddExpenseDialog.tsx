@@ -19,6 +19,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useCategories } from "@/hooks/useCategories";
+import { useSettings } from "@/hooks/useSettings";
+import { getCurrencySymbol } from "@/lib/currency";
 
 interface AddExpenseDialogProps {
   open: boolean;
@@ -33,6 +35,7 @@ interface AddExpenseDialogProps {
 
 export function AddExpenseDialog({ open, onOpenChange, onSubmit }: AddExpenseDialogProps) {
   const { data: categories = [] } = useCategories();
+  const { data: settings } = useSettings();
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState("");
   const [description, setDescription] = useState("");
@@ -73,7 +76,7 @@ export function AddExpenseDialog({ open, onOpenChange, onSubmit }: AddExpenseDia
               <Label htmlFor="amount">Amount</Label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-mono">
-                  $
+                  {getCurrencySymbol(settings?.currency || "USD")}
                 </span>
                 <Input
                   id="amount"

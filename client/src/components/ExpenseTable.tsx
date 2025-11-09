@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { CategoryBadge } from "./CategoryBadge";
 import { Pencil, Trash2 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { formatCurrency } from "@/lib/currency";
 
 export interface Expense {
   id: string;
@@ -29,9 +30,10 @@ interface ExpenseTableProps {
   onEdit?: (expense: Expense) => void;
   onDelete?: (id: string) => void;
   showUser?: boolean;
+  currency?: string;
 }
 
-export function ExpenseTable({ expenses, onEdit, onDelete, showUser = false }: ExpenseTableProps) {
+export function ExpenseTable({ expenses, onEdit, onDelete, showUser = false, currency = "USD" }: ExpenseTableProps) {
   const [hoveredRow, setHoveredRow] = useState<string | null>(null);
 
   return (
@@ -73,7 +75,7 @@ export function ExpenseTable({ expenses, onEdit, onDelete, showUser = false }: E
                   <CategoryBadge category={expense.category} />
                 </TableCell>
                 <TableCell className="text-right font-mono font-semibold">
-                  ${expense.amount.toFixed(2)}
+                  {formatCurrency(expense.amount, currency)}
                 </TableCell>
                 <TableCell>{expense.description}</TableCell>
                 {showUser && expense.user && (
