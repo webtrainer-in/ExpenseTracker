@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { DollarSign, Users, TrendingUp, Shield } from "lucide-react";
+import { SignInButton, SignUpButton } from "@clerk/clerk-react";
 
 export default function Landing() {
   return (
@@ -8,12 +9,11 @@ export default function Landing() {
       <header className="border-b">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <h1 className="text-2xl font-bold">ExpenseTracker</h1>
-          <Button
-            onClick={() => (window.location.href = "/api/login")}
-            data-testid="button-login"
-          >
-            Log In
-          </Button>
+          <SignInButton mode="redirect" forceRedirectUrl="/">
+            <Button data-testid="button-login">
+              Log In
+            </Button>
+          </SignInButton>
         </div>
       </header>
 
@@ -26,13 +26,14 @@ export default function Landing() {
             Track spending, set budgets, and gain insights into your family's
             financial health with our intuitive expense management platform.
           </p>
-          <Button
-            size="lg"
-            onClick={() => (window.location.href = "/api/login")}
-            data-testid="button-get-started"
-          >
-            Get Started
-          </Button>
+          <SignUpButton mode="redirect" forceRedirectUrl="/">
+            <Button
+              size="lg"
+              data-testid="button-get-started"
+            >
+              Get Started
+            </Button>
+          </SignUpButton>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-16">

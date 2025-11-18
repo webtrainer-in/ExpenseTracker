@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { setupAuth, isAuthenticated } from "./replitAuth";
+import { setupAuth, isAuthenticated, withAuth } from "./clerkAuth";
 import { insertExpenseSchema, insertCategorySchema, updateCategorySchema, updateSettingsSchema } from "@shared/schema";
 import { z } from "zod";
 
@@ -17,20 +17,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
   }
 
   // Auth routes
-  app.get("/api/auth/user", isAuthenticated, async (req: any, res) => {
+  app.get("/api/auth/user", withAuth, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const auth = req.auth;
+      if (!auth?.userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      const userId = auth.userId;
       let user = await storage.getUser(userId);
       
-      // In local dev mode, create the mock user if it doesn't exist
-      if (!user && (process.env.REPL_ID === 'local-dev' || !process.env.REPL_ID)) {
+      // Create user if doesn't exist
+      if (!user) {
         user = await storage.upsertUser({
           id: userId,
-          email: req.user.claims.email,
-          firstName: req.user.claims.first_name || 'Local',
-          lastName: req.user.claims.last_name || 'Developer',
-          profileImageUrl: null,
-          role: 'admin', // Make local dev user an admin
+          email: auth.sessionClaims?.email || "",
+          firstName: auth.sessionClaims?.firstName || "",
+          lastName: auth.sessionClaims?.lastName || "",
+          profileImageUrl: auth.sessionClaims?.imageUrl || null,
+          role: 'member',
         });
       }
       
