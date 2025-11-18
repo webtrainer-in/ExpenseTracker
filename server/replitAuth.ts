@@ -1,78 +1,49 @@
-import * as client from "openid-client";
-import { Strategy, type VerifyFunction } from "openid-client/passport";
-import passport from "passport";
-import session from "express-session";
+import { ClerkExpressRequireAuth, ClerkExpressWithAuth } from "@clerk/clerk-sdk-node";
 import type { Express, RequestHandler } from "express";
-import memoize from "memoizee";
-import connectPg from "connect-pg-simple";
 import { storage } from "./storage";
 
-const getOidcConfig = memoize(
-  async () => {
-    return await client.discovery(
-      new URL(process.env.ISSUER_URL ?? "https://replit.com/oidc"),
-      process.env.REPL_ID!
-    );
-  },
-  { maxAge: 3600 * 1000 }
-);
-
-export function getSession() {
-  const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 1 week
-  const pgStore = connectPg(session);
-  const sessionStore = new pgStore({
-    conString: process.env.DATABASE_URL,
-    createTableIfMissing: false,
-    ttl: sessionTtl,
-    tableName: "sessions",
-  });
-  return session({
-    secret: process.env.SESSION_SECRET!,
-    store: sessionStore,
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-      httpOnly: true,
-      secure: true,
-      maxAge: sessionTtl,
-    },
-  });
-}
-
-function updateUserSession(
-  user: any,
-  tokens: client.TokenEndpointResponse & client.TokenEndpointResponseHelpers
-) {
-  user.claims = tokens.claims();
-  user.access_token = tokens.access_token;
-  user.refresh_token = tokens.refresh_token;
-  user.expires_at = user.claims?.exp;
-}
-
-async function upsertUser(claims: any) {
-  const existingUser = await storage.getUser(claims["sub"]);
+// Helper to extract user info from Clerk session
+async function upsertUserFromClerk(clerkUser: any) {
+  const userId = clerkUser.userId;
+  const existingUser = await storage.getUser(userId);
   
   let role: "admin" | "member" = "member";
   
   if (existingUser) {
     role = existingUser.role as "admin" | "member";
-  } else if (claims["role"] === "admin") {
+  } else if (clerkUser.publicMetadata?.role === "admin") {
     role = "admin";
-  } else if (claims["role"] === "member") {
-    role = "member";
   }
   
   await storage.upsertUser({
-    id: claims["sub"],
-    email: claims["email"],
-    firstName: claims["first_name"],
-    lastName: claims["last_name"],
-    profileImageUrl: claims["profile_image_url"],
+    id: userId,
+    email: clerkUser.emailAddresses?.[0]?.emailAddress || "",
+    firstName: clerkUser.firstName || "",
+    lastName: clerkUser.lastName || "",
+    profileImageUrl: clerkUser.imageUrl || null,
     role: role,
   });
+  
+  return userId;
 }
 
 export async function setupAuth(app: Express) {
+  // Skip Replit auth setup for local development
+  if (process.env.REPL_ID === 'local-dev' || !process.env.REPL_ID) {
+    console.log('⚠️  Running in local development mode - authentication is disabled');
+    
+    // Add mock login/logout routes for local development
+    app.get("/api/login", (req, res) => {
+      res.redirect("/");
+    });
+    
+    app.get("/api/logout", (req, res) => {
+      res.redirect("/");
+    });
+    
+    return;
+  }
+
   app.set("trust proxy", 1);
   app.use(getSession());
   app.use(passport.initialize());
@@ -141,6 +112,20 @@ export async function setupAuth(app: Express) {
 }
 
 export const isAuthenticated: RequestHandler = async (req, res, next) => {
+  // Bypass authentication for local development
+  if (process.env.REPL_ID === 'local-dev' || !process.env.REPL_ID) {
+    // Mock a local user for development
+    (req as any).user = {
+      claims: {
+        sub: 'local-dev-user',
+        email: 'dev@localhost',
+        first_name: 'Local',
+        last_name: 'Developer'
+      }
+    };
+    return next();
+  }
+
   const user = req.user as any;
 
   if (!req.isAuthenticated() || !user.expires_at) {

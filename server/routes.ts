@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { setupAuth, isAuthenticated } from "./replitAuth";
+import { setupAuth, isAuthenticated, withAuth } from "./clerkAuth";
 import { insertExpenseSchema, insertCategorySchema, updateCategorySchema, updateSettingsSchema } from "@shared/schema";
 import { z } from "zod";
 
@@ -17,10 +17,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
   }
 
   // Auth routes
-  app.get("/api/auth/user", isAuthenticated, async (req: any, res) => {
+  app.get("/api/auth/user", withAuth, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
-      const user = await storage.getUser(userId);
+      const auth = req.auth;
+      if (!auth?.userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      const userId = auth.userId;
+      let user = await storage.getUser(userId);
+      
+      // Create user if doesn't exist
+      if (!user) {
+        user = await storage.upsertUser({
+          id: userId,
+          email: auth.sessionClaims?.email || "",
+          firstName: auth.sessionClaims?.firstName || "",
+          lastName: auth.sessionClaims?.lastName || "",
+          profileImageUrl: auth.sessionClaims?.imageUrl || null,
+          role: 'member',
+        });
+      }
+      
       res.json(user);
     } catch (error) {
       console.error("Error fetching user:", error);
@@ -41,7 +59,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch("/api/settings", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.auth.userId;
       const user = await storage.getUser(userId);
 
       if (!user || user.role !== "admin") {
@@ -73,7 +91,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/categories", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.auth.userId;
       const user = await storage.getUser(userId);
 
       if (!user || user.role !== "admin") {
@@ -94,7 +112,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch("/api/categories/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.auth.userId;
       const user = await storage.getUser(userId);
 
       if (!user || user.role !== "admin") {
@@ -130,7 +148,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/categories/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.auth.userId;
       const user = await storage.getUser(userId);
 
       if (!user || user.role !== "admin") {
@@ -155,7 +173,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Expense routes
   app.get("/api/expenses", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.auth.userId;
       const user = await storage.getUser(userId);
       
       if (!user) {
@@ -189,7 +207,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/expenses", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.auth.userId;
       const validatedData = insertExpenseSchema.parse({
         ...req.body,
         userId,
@@ -208,7 +226,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch("/api/expenses/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.auth.userId;
       const { id } = req.params;
 
       const expense = await storage.getExpense(id);
@@ -240,7 +258,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/expenses/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.auth.userId;
       const { id } = req.params;
 
       const expense = await storage.getExpense(id);
@@ -269,7 +287,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Stats routes
   app.get("/api/stats", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.auth.userId;
       const user = await storage.getUser(userId);
 
       if (!user) {

@@ -12,6 +12,7 @@ import {
 import { LogOut, Settings, User, Tags } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
 import { useLocation } from "wouter";
+import { UserButton, useClerk } from "@clerk/clerk-react";
 
 interface UserHeaderProps {
   user: {
@@ -25,6 +26,7 @@ interface UserHeaderProps {
 
 export function UserHeader({ user, onLogout }: UserHeaderProps) {
   const [, setLocation] = useLocation();
+  const { signOut } = useClerk();
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -37,70 +39,26 @@ export function UserHeader({ user, onLogout }: UserHeaderProps) {
             </Badge>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-4">
           <ThemeToggle />
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                className="gap-2 hover-elevate"
-                data-testid="button-user-menu"
-              >
-                <Avatar className="h-8 w-8">
-                  <AvatarImage src={user.avatar} alt={user.name} />
-                  <AvatarFallback>
-                    {user.name
-                      .split(" ")
-                      .map((n) => n[0])
-                      .join("")}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="text-left hidden sm:block">
-                  <p className="text-sm font-medium">{user.name}</p>
-                  <p className="text-xs text-muted-foreground">{user.email}</p>
-                </div>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel>My Account</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={() => setLocation("/profile")}
-                data-testid="menu-profile"
-              >
-                <User className="mr-2 h-4 w-4" />
-                <span>Profile</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => setLocation("/profile")}
-                data-testid="menu-settings"
-              >
-                <Settings className="mr-2 h-4 w-4" />
-                <span>Settings</span>
-              </DropdownMenuItem>
-              {user.role === "admin" && (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    onClick={() => setLocation("/categories")}
-                    data-testid="menu-categories"
-                  >
-                    <Tags className="mr-2 h-4 w-4" />
-                    <span>Manage Categories</span>
-                  </DropdownMenuItem>
-                </>
-              )}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={onLogout}
-                className="text-destructive"
-                data-testid="menu-logout"
-              >
-                <LogOut className="mr-2 h-4 w-4" />
-                <span>Log out</span>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {user.role === "admin" && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setLocation("/categories")}
+            >
+              <Tags className="mr-2 h-4 w-4" />
+              Categories
+            </Button>
+          )}
+          <UserButton
+            afterSignOutUrl="/"
+            appearance={{
+              elements: {
+                avatarBox: "h-8 w-8"
+              }
+            }}
+          />
         </div>
       </div>
     </header>
