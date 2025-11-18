@@ -20,7 +20,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/auth/user", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const user = await storage.getUser(userId);
+      let user = await storage.getUser(userId);
+      
+      // In local dev mode, create the mock user if it doesn't exist
+      if (!user && (process.env.REPL_ID === 'local-dev' || !process.env.REPL_ID)) {
+        user = await storage.upsertUser({
+          id: userId,
+          email: req.user.claims.email,
+          firstName: req.user.claims.first_name || 'Local',
+          lastName: req.user.claims.last_name || 'Developer',
+          profileImageUrl: null,
+          role: 'admin', // Make local dev user an admin
+        });
+      }
+      
       res.json(user);
     } catch (error) {
       console.error("Error fetching user:", error);

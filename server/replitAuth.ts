@@ -73,6 +73,22 @@ async function upsertUser(claims: any) {
 }
 
 export async function setupAuth(app: Express) {
+  // Skip Replit auth setup for local development
+  if (process.env.REPL_ID === 'local-dev' || !process.env.REPL_ID) {
+    console.log('⚠️  Running in local development mode - authentication is disabled');
+    
+    // Add mock login/logout routes for local development
+    app.get("/api/login", (req, res) => {
+      res.redirect("/");
+    });
+    
+    app.get("/api/logout", (req, res) => {
+      res.redirect("/");
+    });
+    
+    return;
+  }
+
   app.set("trust proxy", 1);
   app.use(getSession());
   app.use(passport.initialize());
@@ -141,6 +157,20 @@ export async function setupAuth(app: Express) {
 }
 
 export const isAuthenticated: RequestHandler = async (req, res, next) => {
+  // Bypass authentication for local development
+  if (process.env.REPL_ID === 'local-dev' || !process.env.REPL_ID) {
+    // Mock a local user for development
+    (req as any).user = {
+      claims: {
+        sub: 'local-dev-user',
+        email: 'dev@localhost',
+        first_name: 'Local',
+        last_name: 'Developer'
+      }
+    };
+    return next();
+  }
+
   const user = req.user as any;
 
   if (!req.isAuthenticated() || !user.expires_at) {
