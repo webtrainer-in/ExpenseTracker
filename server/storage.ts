@@ -263,7 +263,7 @@ export class DatabaseStorage implements IStorage {
     const now = new Date();
     const firstDayThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const firstDayLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const lastDayLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+    const lastDayLastMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
 
     const [totalResult] = await db
       .select({ sum: sql<string>`COALESCE(SUM(${expenses.amount}), 0)` })
@@ -296,10 +296,12 @@ export class DatabaseStorage implements IStorage {
   async getAllUsersStats(): Promise<{
     total: number;
     thisMonth: number;
-    byUser: Array<{ user: User; total: number }>;
+    lastMonth: number;
   }> {
     const now = new Date();
     const firstDayThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const firstDayLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const lastDayLastMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
 
     const [totalResult] = await db
       .select({ sum: sql<string>`COALESCE(SUM(${expenses.amount}), 0)` })
@@ -310,22 +312,20 @@ export class DatabaseStorage implements IStorage {
       .from(expenses)
       .where(gte(expenses.date, firstDayThisMonth));
 
-    const byUserResult = await db
-      .select({
-        user: users,
-        total: sql<string>`COALESCE(SUM(${expenses.amount}), 0)`,
-      })
-      .from(users)
-      .leftJoin(expenses, eq(users.id, expenses.userId))
-      .groupBy(users.id);
+    const [lastMonthResult] = await db
+      .select({ sum: sql<string>`COALESCE(SUM(${expenses.amount}), 0)` })
+      .from(expenses)
+      .where(
+        and(
+          gte(expenses.date, firstDayLastMonth),
+          lte(expenses.date, lastDayLastMonth)
+        )
+      );
 
     return {
       total: parseFloat(totalResult.sum) || 0,
       thisMonth: parseFloat(thisMonthResult.sum) || 0,
-      byUser: byUserResult.map((row) => ({
-        user: row.user,
-        total: parseFloat(row.total) || 0,
-      })),
+      lastMonth: parseFloat(lastMonthResult.sum) || 0,
     };
   }
 }

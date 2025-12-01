@@ -7,16 +7,25 @@ import { isUnauthorizedError } from "@/lib/authUtils";
 import { UserHeader } from "@/components/UserHeader";
 import { StatCard } from "@/components/StatCard";
 import { ExpenseTable } from "@/components/ExpenseTable";
+import { CategoryExpenseTable } from "@/components/CategoryExpenseTable";
 import { ExpenseChart } from "@/components/ExpenseChart";
 import { AddExpenseDialog } from "@/components/AddExpenseDialog";
 import { EditExpenseDialog } from "@/components/EditExpenseDialog";
 import { FilterBar } from "@/components/FilterBar";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { DollarSign, Calendar, TrendingUp, Plus, FileText, BarChart3 } from "lucide-react";
+import { DollarSign, Calendar, TrendingUp, Plus, FileText, BarChart3, Download } from "lucide-react";
 import type { Expense, User } from "@shared/schema";
 import { useSettings } from "@/hooks/useSettings";
 import { formatCurrency } from "@/lib/currency";
+import { exportSummaryToCSV, exportDetailToCSV } from "@/lib/csvExport";
 
 interface ExpenseWithUser extends Expense {
   user: User;
@@ -30,6 +39,12 @@ export default function Dashboard() {
   const [selectedExpense, setSelectedExpense] = useState<ExpenseWithUser | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
+  const [selectedUser, setSelectedUser] = useState("all");
+  
+  // Initialize with current month
+  const now = new Date();
+  const defaultMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const [selectedMonthYear, setSelectedMonthYear] = useState(defaultMonth);
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -179,9 +194,11 @@ export default function Dashboard() {
   });
 
   // Filter expenses by search query
-  const filteredExpenses = expenses.filter((expense) =>
-    expense.description.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredExpenses = expenses.filter((expense) => {
+    const matchesSearch = expense.description.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesUser = selectedUser === "all" || expense.user?.id === selectedUser;
+    return matchesSearch && matchesUser;
+  });
 
   // Prepare expense data for table
   const tableExpenses = filteredExpenses.map((expense) => ({
@@ -203,6 +220,17 @@ export default function Dashboard() {
   const lastMonth = stats?.lastMonth || 0;
   const percentageChange = lastMonth > 0 ? ((thisMonth - lastMonth) / lastMonth * 100).toFixed(1) : "0";
 
+  // Get selected month's date range
+  const [selectedYear, selectedMonthNum] = selectedMonthYear.split('-').map(Number);
+  const firstDaySelectedMonth = new Date(selectedYear, selectedMonthNum - 1, 1);
+  const lastDaySelectedMonth = new Date(selectedYear, selectedMonthNum, 0, 23, 59, 59, 999);
+
+  // Filter expenses for selected month only
+  const selectedMonthExpenses = expenses.filter((expense) => {
+    const expenseDate = new Date(expense.date);
+    return expenseDate >= firstDaySelectedMonth && expenseDate <= lastDaySelectedMonth;
+  });
+
   // Prepare monthly chart data
   const monthlyData = expenses.reduce((acc: any[], expense) => {
     const date = new Date(expense.date);
@@ -221,17 +249,31 @@ export default function Dashboard() {
     return dateA.getTime() - dateB.getTime();
   }).slice(-6); // Last 6 months
 
-  // Prepare category chart data
-  const categoryTotals = expenses.reduce((acc: any, expense) => {
-    acc[expense.category] = (acc[expense.category] || 0) + parseFloat(expense.amount);
+  // Prepare category chart data using selected month expenses only
+  const categoryTotals = selectedMonthExpenses.reduce((acc: any, expense) => {
+    const category = expense.category;
+    if (!acc[category]) {
+      acc[category] = { amount: 0, count: 0 };
+    }
+    acc[category].amount += parseFloat(expense.amount);
+    acc[category].count += 1;
     return acc;
   }, {});
   
-  const total = Object.values(categoryTotals).reduce((sum: number, amount: any) => sum + amount, 0) as number;
-  const categoryData = Object.entries(categoryTotals).map(([category, amount]: [string, any]) => ({
+  const total = Object.values(categoryTotals).reduce((sum: number, item: any) => sum + item.amount, 0) as number;
+  const categoryData = Object.entries(categoryTotals).map(([category, data]: [string, any]) => ({
     category: category.charAt(0).toUpperCase() + category.slice(1),
-    amount,
-    percentage: total > 0 ? Math.round((amount / total) * 100) : 0,
+    amount: data.amount,
+    percentage: total > 0 ? Math.round((data.amount / total) * 100) : 0,
+    count: data.count,
+  }));
+
+  // Prepare category expense table data
+  const categoryTableData = Object.entries(categoryTotals).map(([category, data]: [string, any]) => ({
+    category: category.charAt(0).toUpperCase() + category.slice(1),
+    amount: data.amount,
+    percentage: total > 0 ? Math.round((data.amount / total) * 100) : 0,
+    count: data.count,
   }));
 
   if (authLoading || !user) {
@@ -283,6 +325,10 @@ export default function Dashboard() {
               onSearchChange={setSearchQuery}
               selectedCategory={selectedCategory}
               onCategoryChange={setSelectedCategory}
+              selectedUser={selectedUser}
+              onUserChange={setSelectedUser}
+              users={expenses.map(e => e.user).filter((u, index, self) => u && self.findIndex(x => x?.id === u?.id) === index) as User[]}
+              showUserFilter={isAdmin}
             />
 
             {expensesLoading ? (
@@ -305,6 +351,67 @@ export default function Dashboard() {
           </TabsContent>
 
           <TabsContent value="dashboard" className="space-y-6">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+              <div className="w-full sm:w-[250px]">
+                <Select value={selectedMonthYear} onValueChange={setSelectedMonthYear}>
+                  <SelectTrigger data-testid="select-month-year">
+                    <SelectValue placeholder="Select Month" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {monthlyData.map((item) => {
+                      const [month, year] = item.month.split(' ');
+                      const monthNum = new Date(`${month} 1, ${year}`).getMonth() + 1;
+                      const monthYearValue = `${year}-${String(monthNum).padStart(2, '0')}`;
+                      return (
+                        <SelectItem key={monthYearValue} value={monthYearValue}>
+                          {item.month}
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    exportSummaryToCSV(
+                      categoryTableData,
+                      selectedMonthYear,
+                      settings?.currency || "USD"
+                    );
+                  }}
+                  data-testid="button-export-summary"
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Export Summary
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const detailData = selectedMonthExpenses.map((expense) => ({
+                      date: new Date(expense.date).toLocaleDateString(),
+                      category: expense.category.charAt(0).toUpperCase() + expense.category.slice(1),
+                      description: expense.description,
+                      amount: parseFloat(expense.amount),
+                      user: expense.user ? `${expense.user.firstName || ""} ${expense.user.lastName || ""}`.trim() || expense.user.email : undefined,
+                    }));
+                    exportDetailToCSV(
+                      detailData,
+                      selectedMonthYear,
+                      isAdmin
+                    );
+                  }}
+                  data-testid="button-export-detail"
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Export Details
+                </Button>
+              </div>
+            </div>
+            
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <StatCard
                 title={isAdmin ? "Total Family Spending" : "Total Spent"}
@@ -331,20 +438,33 @@ export default function Dashboard() {
             </div>
 
             {expenses.length > 0 ? (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <ExpenseChart
-                  type="monthly"
-                  data={monthlyData}
-                  title="Monthly Spending Trend"
-                  currency={settings?.currency || "USD"}
-                />
-                <ExpenseChart
-                  type="category"
-                  data={categoryData}
-                  title="Spending by Category"
-                  currency={settings?.currency || "USD"}
-                />
-              </div>
+              <>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <ExpenseChart
+                    type="monthly"
+                    data={monthlyData}
+                    title="Monthly Spending Trend"
+                    currency={settings?.currency || "USD"}
+                  />
+                  <ExpenseChart
+                    type="category"
+                    data={categoryData}
+                    title={`Spending by Category - ${new Date(selectedYear, selectedMonthNum - 1).toLocaleDateString("en-US", { month: "long", year: "numeric" })}`}
+                    currency={settings?.currency || "USD"}
+                  />
+                </div>
+
+                <div className="mt-8">
+                  <h3 className="text-lg font-semibold mb-4">
+                    Category-wise Breakdown - {new Date(selectedYear, selectedMonthNum - 1).toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+                  </h3>
+                  <CategoryExpenseTable
+                    data={categoryTableData}
+                    currency={settings?.currency || "USD"}
+                    totalAmount={total}
+                  />
+                </div>
+              </>
             ) : (
               <div className="text-center py-12 text-muted-foreground">
                 No expense data available yet. Add some expenses to see charts and insights.
