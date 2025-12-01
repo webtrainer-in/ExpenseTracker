@@ -1,4 +1,4 @@
-import { ClerkExpressRequireAuth, ClerkExpressWithAuth } from "@clerk/clerk-sdk-node";
+import { ClerkExpressRequireAuth, ClerkExpressWithAuth, clerkClient } from "@clerk/clerk-sdk-node";
 import type { Express, RequestHandler, Request, Response, NextFunction } from "express";
 import { storage } from "./storage";
 
@@ -10,28 +10,38 @@ async function upsertUserFromClerk(auth: any) {
     return null;
   }
   
-  const existingUser = await storage.getUser(userId);
-  
-  let role: "admin" | "member" = "member";
-  
-  if (existingUser) {
-    role = existingUser.role as "admin" | "member";
-  }
-  
-  // We'll get user details from Clerk's user object if available
-  // For now, we'll create a basic user entry
-  if (!existingUser) {
+  try {
+    // Fetch full user details from Clerk API
+    const clerkUser = await clerkClient.users.getUser(userId);
+    
+    const existingUser = await storage.getUser(userId);
+    
+    let role: "admin" | "member" = "member";
+    
+    if (existingUser) {
+      role = existingUser.role as "admin" | "member";
+    }
+    
+    // Get primary email address
+    const primaryEmail = clerkUser.emailAddresses.find(
+      email => email.id === clerkUser.primaryEmailAddressId
+    )?.emailAddress || "";
+    
+    // Upsert user with full details from Clerk
     await storage.upsertUser({
       id: userId,
-      email: auth.sessionClaims?.email || "",
-      firstName: auth.sessionClaims?.firstName || "",
-      lastName: auth.sessionClaims?.lastName || "",
-      profileImageUrl: auth.sessionClaims?.imageUrl || null,
+      email: primaryEmail,
+      firstName: clerkUser.firstName || "",
+      lastName: clerkUser.lastName || "",
+      profileImageUrl: clerkUser.imageUrl || null,
       role: role,
     });
+    
+    return userId;
+  } catch (error) {
+    console.error('Error fetching user from Clerk:', error);
+    return userId;
   }
-  
-  return userId;
 }
 
 export async function setupAuth(app: Express) {
@@ -61,13 +71,17 @@ export const withAuth: RequestHandler = async (req: Request, res: Response, next
       const auth = (req as any).auth;
       if (auth?.userId) {
         await upsertUserFromClerk(auth);
+        
+        // Fetch user from database to get updated details
+        const dbUser = await storage.getUser(auth.userId);
+        
         // Attach user info to request for backward compatibility
         (req as any).user = {
           claims: {
             sub: auth.userId,
-            email: auth.sessionClaims?.email,
-            first_name: auth.sessionClaims?.firstName,
-            last_name: auth.sessionClaims?.lastName,
+            email: dbUser?.email || "",
+            first_name: dbUser?.firstName || "",
+            last_name: dbUser?.lastName || "",
           }
         };
       }
