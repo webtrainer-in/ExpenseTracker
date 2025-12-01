@@ -8,12 +8,17 @@ import {
 } from "@/components/ui/select";
 import { Search } from "lucide-react";
 import { useCategories } from "@/hooks/useCategories";
+import type { User } from "@shared/schema";
 
 interface FilterBarProps {
   searchQuery: string;
   onSearchChange: (query: string) => void;
   selectedCategory: string;
   onCategoryChange: (category: string) => void;
+  selectedUser?: string;
+  onUserChange?: (userId: string) => void;
+  users?: User[];
+  showUserFilter?: boolean;
   dateRange?: {
     from: string;
     to: string;
@@ -26,6 +31,10 @@ export function FilterBar({
   onSearchChange,
   selectedCategory,
   onCategoryChange,
+  selectedUser = "all",
+  onUserChange,
+  users = [],
+  showUserFilter = false,
 }: FilterBarProps) {
   const { data: categories = [] } = useCategories();
 
@@ -54,6 +63,21 @@ export function FilterBar({
           ))}
         </SelectContent>
       </Select>
+      {showUserFilter && onUserChange && (
+        <Select value={selectedUser} onValueChange={onUserChange}>
+          <SelectTrigger className="w-full sm:w-[200px]" data-testid="select-filter-user">
+            <SelectValue placeholder="All Users" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Users</SelectItem>
+            {users.map((u) => (
+              <SelectItem key={u.id} value={u.id}>
+                {`${u.firstName || ""} ${u.lastName || ""}`.trim() || u.email || "Unknown"}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
     </div>
   );
 }
