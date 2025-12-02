@@ -21,7 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { DollarSign, Calendar, TrendingUp, Plus, FileText, BarChart3, Download } from "lucide-react";
+import { DollarSign, Calendar, TrendingUp, Plus, FileText, BarChart3, Download, Table } from "lucide-react";
 import type { Expense, User } from "@shared/schema";
 import { useSettings } from "@/hooks/useSettings";
 import { formatCurrency } from "@/lib/currency";
@@ -39,7 +39,10 @@ export default function Dashboard() {
   const [selectedExpense, setSelectedExpense] = useState<ExpenseWithUser | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
+  const [expenseBookCategory, setExpenseBookCategory] = useState("all");
+  const [expenseBookMonth, setExpenseBookMonth] = useState<string | null>(null);
   const [selectedUser, setSelectedUser] = useState("all");
+  const [activeTab, setActiveTab] = useState("data-entry");
   
   // Initialize with current month
   const now = new Date();
@@ -61,12 +64,18 @@ export default function Dashboard() {
     }
   }, [isAuthenticated, authLoading, toast]);
 
-  // Fetch expenses
-  const expensesUrl = selectedCategory === "all"
+  // Fetch expenses for Expense Book (filtered by category)
+  const expensesUrl = expenseBookCategory === "all"
     ? "/api/expenses"
-    : `/api/expenses?category=${selectedCategory}`;
+    : `/api/expenses?category=${expenseBookCategory}`;
   const { data: expenses = [], isLoading: expensesLoading } = useQuery<ExpenseWithUser[]>({
     queryKey: [expensesUrl],
+    enabled: isAuthenticated,
+  });
+
+  // Fetch all expenses for dashboard (unfiltered for charts)
+  const { data: allExpenses = [] } = useQuery<ExpenseWithUser[]>({
+    queryKey: ["/api/expenses"],
     enabled: isAuthenticated,
   });
 
@@ -193,11 +202,20 @@ export default function Dashboard() {
     },
   });
 
-  // Filter expenses by search query
+  // Filter expenses by search query and month (if drilling down)
   const filteredExpenses = expenses.filter((expense) => {
     const matchesSearch = expense.description.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesUser = selectedUser === "all" || expense.user?.id === selectedUser;
-    return matchesSearch && matchesUser;
+    
+    // Filter by month if expenseBookMonth is set (drill-down scenario)
+    let matchesMonth = true;
+    if (expenseBookMonth) {
+      const [year, month] = expenseBookMonth.split('-').map(Number);
+      const expenseDate = new Date(expense.date);
+      matchesMonth = expenseDate.getFullYear() === year && expenseDate.getMonth() + 1 === month;
+    }
+    
+    return matchesSearch && matchesUser && matchesMonth;
   });
 
   // Prepare expense data for table
@@ -225,14 +243,14 @@ export default function Dashboard() {
   const firstDaySelectedMonth = new Date(selectedYear, selectedMonthNum - 1, 1);
   const lastDaySelectedMonth = new Date(selectedYear, selectedMonthNum, 0, 23, 59, 59, 999);
 
-  // Filter expenses for selected month only
-  const selectedMonthExpenses = expenses.filter((expense) => {
+  // Filter expenses for selected month only (using all expenses for dashboard)
+  const selectedMonthExpenses = allExpenses.filter((expense) => {
     const expenseDate = new Date(expense.date);
     return expenseDate >= firstDaySelectedMonth && expenseDate <= lastDaySelectedMonth;
   });
 
-  // Prepare monthly chart data
-  const monthlyData = expenses.reduce((acc: any[], expense) => {
+  // Prepare monthly chart data (from all expenses)
+  const monthlyData = allExpenses.reduce((acc: any[], expense) => {
     const date = new Date(expense.date);
     const monthYear = date.toLocaleDateString("en-US", { month: "short", year: "numeric" });
     const existing = acc.find((item) => item.month === monthYear);
@@ -249,7 +267,7 @@ export default function Dashboard() {
     return dateA.getTime() - dateB.getTime();
   }).slice(-6); // Last 6 months
 
-  // Prepare category chart data using selected month expenses only
+  // Prepare category chart data using selected month expenses only (from all expenses)
   const categoryTotals = selectedMonthExpenses.reduce((acc: any, expense) => {
     const category = expense.category;
     if (!acc[category]) {
@@ -293,7 +311,7 @@ export default function Dashboard() {
       />
 
       <main className="max-w-7xl mx-auto p-6 space-y-8">
-        <Tabs defaultValue="data-entry" className="space-y-6">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList data-testid="tabs-main">
             <TabsTrigger value="data-entry" data-testid="tab-data-entry">
               <FileText className="h-4 w-4 mr-2" />
@@ -302,6 +320,10 @@ export default function Dashboard() {
             <TabsTrigger value="dashboard" data-testid="tab-dashboard">
               <BarChart3 className="h-4 w-4 mr-2" />
               Dashboard
+            </TabsTrigger>
+            <TabsTrigger value="summary" data-testid="tab-summary">
+              <Table className="h-4 w-4 mr-2" />
+              Expense Summary
             </TabsTrigger>
           </TabsList>
 
@@ -323,8 +345,11 @@ export default function Dashboard() {
             <FilterBar
               searchQuery={searchQuery}
               onSearchChange={setSearchQuery}
-              selectedCategory={selectedCategory}
-              onCategoryChange={setSelectedCategory}
+              selectedCategory={expenseBookCategory}
+              onCategoryChange={(category) => {
+                setExpenseBookCategory(category);
+                setExpenseBookMonth(null); // Reset month filter when manually changing category
+              }}
               selectedUser={selectedUser}
               onUserChange={setSelectedUser}
               users={expenses.map(e => e.user).filter((u, index, self) => u && self.findIndex(x => x?.id === u?.id) === index) as User[]}
@@ -355,6 +380,78 @@ export default function Dashboard() {
               <div className="w-full sm:w-[250px]">
                 <Select value={selectedMonthYear} onValueChange={setSelectedMonthYear}>
                   <SelectTrigger data-testid="select-month-year">
+                    <SelectValue placeholder="Select Month" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {monthlyData.map((item) => {
+                      const [month, year] = item.month.split(' ');
+                      const monthNum = new Date(`${month} 1, ${year}`).getMonth() + 1;
+                      const monthYearValue = `${year}-${String(monthNum).padStart(2, '0')}`;
+                      return (
+                        <SelectItem key={monthYearValue} value={monthYearValue}>
+                          {item.month}
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <StatCard
+                title={isAdmin ? "Total Family Spending" : "Total Spent"}
+                value={formatCurrency(totalSpent, settings?.currency || "USD")}
+                icon={DollarSign}
+                testId="stat-total"
+              />
+              <StatCard
+                title="This Month"
+                value={formatCurrency(thisMonth, settings?.currency || "USD")}
+                icon={Calendar}
+                trend={{
+                  value: `${Math.abs(parseFloat(percentageChange))}% from last month`,
+                  isPositive: thisMonth <= lastMonth,
+                }}
+                testId="stat-month"
+              />
+              <StatCard
+                title="Last Month"
+                value={formatCurrency(lastMonth, settings?.currency || "USD")}
+                icon={TrendingUp}
+                testId="stat-last-month"
+              />
+            </div>
+
+            {expenses.length > 0 ? (
+              <>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <ExpenseChart
+                    type="monthly"
+                    data={monthlyData}
+                    title="Monthly Spending Trend"
+                    currency={settings?.currency || "USD"}
+                  />
+                  <ExpenseChart
+                    type="category"
+                    data={categoryData}
+                    title={`Spending by Category - ${new Date(selectedYear, selectedMonthNum - 1).toLocaleDateString("en-US", { month: "long", year: "numeric" })}`}
+                    currency={settings?.currency || "USD"}
+                  />
+                </div>
+              </>
+            ) : (
+              <div className="text-center py-12 text-muted-foreground">
+                No expense data available yet. Add some expenses to see charts and insights.
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="summary" className="space-y-6">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+              <div className="w-full sm:w-[250px]">
+                <Select value={selectedMonthYear} onValueChange={setSelectedMonthYear}>
+                  <SelectTrigger data-testid="select-month-year-summary">
                     <SelectValue placeholder="Select Month" />
                   </SelectTrigger>
                   <SelectContent>
@@ -411,60 +508,23 @@ export default function Dashboard() {
                 </Button>
               </div>
             </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <StatCard
-                title={isAdmin ? "Total Family Spending" : "Total Spent"}
-                value={formatCurrency(totalSpent, settings?.currency || "USD")}
-                icon={DollarSign}
-                testId="stat-total"
-              />
-              <StatCard
-                title="This Month"
-                value={formatCurrency(thisMonth, settings?.currency || "USD")}
-                icon={Calendar}
-                trend={{
-                  value: `${Math.abs(parseFloat(percentageChange))}% from last month`,
-                  isPositive: thisMonth <= lastMonth,
-                }}
-                testId="stat-month"
-              />
-              <StatCard
-                title="Last Month"
-                value={formatCurrency(lastMonth, settings?.currency || "USD")}
-                icon={TrendingUp}
-                testId="stat-last-month"
-              />
-            </div>
 
             {expenses.length > 0 ? (
-              <>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  <ExpenseChart
-                    type="monthly"
-                    data={monthlyData}
-                    title="Monthly Spending Trend"
-                    currency={settings?.currency || "USD"}
-                  />
-                  <ExpenseChart
-                    type="category"
-                    data={categoryData}
-                    title={`Spending by Category - ${new Date(selectedYear, selectedMonthNum - 1).toLocaleDateString("en-US", { month: "long", year: "numeric" })}`}
-                    currency={settings?.currency || "USD"}
-                  />
-                </div>
-
-                <div className="mt-8">
-                  <h3 className="text-lg font-semibold mb-4">
-                    Category-wise Breakdown - {new Date(selectedYear, selectedMonthNum - 1).toLocaleDateString("en-US", { month: "long", year: "numeric" })}
-                  </h3>
-                  <CategoryExpenseTable
-                    data={categoryTableData}
-                    currency={settings?.currency || "USD"}
-                    totalAmount={total}
-                  />
-                </div>
-              </>
+              <div>
+                <h3 className="text-lg font-semibold mb-4">
+                  Category-wise Breakdown - {new Date(selectedYear, selectedMonthNum - 1).toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+                </h3>
+                <CategoryExpenseTable
+                  data={categoryTableData}
+                  currency={settings?.currency || "USD"}
+                  totalAmount={total}
+                  onCountClick={(category) => {
+                    setExpenseBookCategory(category);
+                    setExpenseBookMonth(selectedMonthYear);
+                    setActiveTab("data-entry");
+                  }}
+                />
+              </div>
             ) : (
               <div className="text-center py-12 text-muted-foreground">
                 No expense data available yet. Add some expenses to see charts and insights.

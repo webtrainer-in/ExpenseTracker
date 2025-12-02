@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/table";
 import { CategoryBadge } from "./CategoryBadge";
 import { formatCurrency } from "@/lib/currency";
+import { Button } from "@/components/ui/button";
 
 interface CategoryExpenseItem {
   category: string;
@@ -20,12 +21,14 @@ interface CategoryExpenseTableProps {
   data: CategoryExpenseItem[];
   currency?: string;
   totalAmount?: number;
+  onCountClick?: (category: string) => void;
 }
 
 export function CategoryExpenseTable({
   data,
   currency = "USD",
   totalAmount = 0,
+  onCountClick,
 }: CategoryExpenseTableProps) {
   // Sort by amount in descending order
   const sortedData = [...data].sort((a, b) => b.amount - a.amount);
@@ -59,7 +62,14 @@ export function CategoryExpenseTable({
                     {formatCurrency(item.amount, currency)}
                   </TableCell>
                   <TableCell className="text-right">
-                    {item.count}
+                    <Button
+                      variant="link"
+                      size="sm"
+                      className="h-auto p-0 text-blue-600 hover:text-blue-800 underline cursor-pointer"
+                      onClick={() => onCountClick?.(item.category.toLowerCase())}
+                    >
+                      {item.count}
+                    </Button>
                   </TableCell>
                   <TableCell className="text-right">
                     <span className="text-sm text-muted-foreground">
