@@ -5,6 +5,7 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import { UserHeader } from "@/components/UserHeader";
+import { DashboardHeader } from "@/components/DashboardHeader";
 import { StatCard } from "@/components/StatCard";
 import { ExpenseTable } from "@/components/ExpenseTable";
 import { CategoryExpenseTable } from "@/components/CategoryExpenseTable";
@@ -13,15 +14,8 @@ import { AddExpenseDialog } from "@/components/AddExpenseDialog";
 import { EditExpenseDialog } from "@/components/EditExpenseDialog";
 import { FilterBar } from "@/components/FilterBar";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { DollarSign, Calendar, TrendingUp, Plus, FileText, BarChart3, Download, Table } from "lucide-react";
+import { DollarSign, Calendar, TrendingUp, Plus, FileText, BarChart3, Table } from "lucide-react";
 import type { Expense, User } from "@shared/schema";
 import { useSettings } from "@/hooks/useSettings";
 import { formatCurrency } from "@/lib/currency";
@@ -202,18 +196,16 @@ export default function Dashboard() {
     },
   });
 
-  // Filter expenses by search query and month (if drilling down)
+  // Filter expenses by search query and month
   const filteredExpenses = expenses.filter((expense) => {
     const matchesSearch = expense.description.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesUser = selectedUser === "all" || expense.user?.id === selectedUser;
     
-    // Filter by month if expenseBookMonth is set (drill-down scenario)
-    let matchesMonth = true;
-    if (expenseBookMonth) {
-      const [year, month] = expenseBookMonth.split('-').map(Number);
-      const expenseDate = new Date(expense.date);
-      matchesMonth = expenseDate.getFullYear() === year && expenseDate.getMonth() + 1 === month;
-    }
+    // Always filter by selectedMonthYear (from DashboardHeader) or expenseBookMonth (from drill-down)
+    const monthToFilter = expenseBookMonth || selectedMonthYear;
+    const [year, month] = monthToFilter.split('-').map(Number);
+    const expenseDate = new Date(expense.date);
+    const matchesMonth = expenseDate.getFullYear() === year && expenseDate.getMonth() + 1 === month;
     
     return matchesSearch && matchesUser && matchesMonth;
   });
@@ -328,18 +320,13 @@ export default function Dashboard() {
           </TabsList>
 
           <TabsContent value="data-entry" className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-xl font-semibold">
-                {isAdmin ? "All Family Expenses" : "My Expenses"}
-              </h3>
-              <Button
-                onClick={() => setAddDialogOpen(true)}
-                data-testid="button-add-expense"
-                disabled={createExpenseMutation.isPending}
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Add Expense
-              </Button>
+            <div className="w-full sm:w-[250px]">
+              <DashboardHeader
+                selectedMonth={selectedMonthYear}
+                onMonthChange={setSelectedMonthYear}
+                monthlyData={monthlyData}
+                showExportButtons={false}
+              />
             </div>
 
             <FilterBar
@@ -355,6 +342,18 @@ export default function Dashboard() {
               users={expenses.map(e => e.user).filter((u, index, self) => u && self.findIndex(x => x?.id === u?.id) === index) as User[]}
               showUserFilter={isAdmin}
             />
+
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+              <h3 className="text-lg font-semibold">Expense Book</h3>
+              <Button
+                onClick={() => setAddDialogOpen(true)}
+                data-testid="button-add-expense"
+                disabled={createExpenseMutation.isPending}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add Expense
+              </Button>
+            </div>
 
             {expensesLoading ? (
               <div className="text-center py-8 text-muted-foreground">Loading expenses...</div>
@@ -376,27 +375,12 @@ export default function Dashboard() {
           </TabsContent>
 
           <TabsContent value="dashboard" className="space-y-6">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-              <div className="w-full sm:w-[250px]">
-                <Select value={selectedMonthYear} onValueChange={setSelectedMonthYear}>
-                  <SelectTrigger data-testid="select-month-year">
-                    <SelectValue placeholder="Select Month" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {monthlyData.map((item) => {
-                      const [month, year] = item.month.split(' ');
-                      const monthNum = new Date(`${month} 1, ${year}`).getMonth() + 1;
-                      const monthYearValue = `${year}-${String(monthNum).padStart(2, '0')}`;
-                      return (
-                        <SelectItem key={monthYearValue} value={monthYearValue}>
-                          {item.month}
-                        </SelectItem>
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+            <DashboardHeader
+              selectedMonth={selectedMonthYear}
+              onMonthChange={setSelectedMonthYear}
+              monthlyData={monthlyData}
+              showExportButtons={false}
+            />
             
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <StatCard
@@ -448,66 +432,33 @@ export default function Dashboard() {
           </TabsContent>
 
           <TabsContent value="summary" className="space-y-6">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-              <div className="w-full sm:w-[250px]">
-                <Select value={selectedMonthYear} onValueChange={setSelectedMonthYear}>
-                  <SelectTrigger data-testid="select-month-year-summary">
-                    <SelectValue placeholder="Select Month" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {monthlyData.map((item) => {
-                      const [month, year] = item.month.split(' ');
-                      const monthNum = new Date(`${month} 1, ${year}`).getMonth() + 1;
-                      const monthYearValue = `${year}-${String(monthNum).padStart(2, '0')}`;
-                      return (
-                        <SelectItem key={monthYearValue} value={monthYearValue}>
-                          {item.month}
-                        </SelectItem>
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    exportSummaryToCSV(
-                      categoryTableData,
-                      selectedMonthYear,
-                      settings?.currency || "USD"
-                    );
-                  }}
-                  data-testid="button-export-summary"
-                >
-                  <Download className="h-4 w-4 mr-2" />
-                  Export Summary
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    const detailData = selectedMonthExpenses.map((expense) => ({
-                      date: new Date(expense.date).toLocaleDateString(),
-                      category: expense.category.charAt(0).toUpperCase() + expense.category.slice(1),
-                      description: expense.description,
-                      amount: parseFloat(expense.amount),
-                      user: expense.user ? `${expense.user.firstName || ""} ${expense.user.lastName || ""}`.trim() || expense.user.email : undefined,
-                    }));
-                    exportDetailToCSV(
-                      detailData,
-                      selectedMonthYear,
-                      isAdmin
-                    );
-                  }}
-                  data-testid="button-export-detail"
-                >
-                  <Download className="h-4 w-4 mr-2" />
-                  Export Details
-                </Button>
-              </div>
-            </div>
+            <DashboardHeader
+              selectedMonth={selectedMonthYear}
+              onMonthChange={setSelectedMonthYear}
+              monthlyData={monthlyData}
+              showExportButtons={true}
+              onExportSummary={() => {
+                exportSummaryToCSV(
+                  categoryTableData,
+                  selectedMonthYear,
+                  settings?.currency || "USD"
+                );
+              }}
+              onExportDetails={() => {
+                const detailData = selectedMonthExpenses.map((expense) => ({
+                  date: new Date(expense.date).toLocaleDateString(),
+                  category: expense.category.charAt(0).toUpperCase() + expense.category.slice(1),
+                  description: expense.description,
+                  amount: parseFloat(expense.amount),
+                  user: expense.user ? `${expense.user.firstName || ""} ${expense.user.lastName || ""}`.trim() || expense.user.email : undefined,
+                }));
+                exportDetailToCSV(
+                  detailData,
+                  selectedMonthYear,
+                  isAdmin
+                );
+              }}
+            />
 
             {expenses.length > 0 ? (
               <div>
