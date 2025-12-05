@@ -217,6 +217,7 @@ export default function Dashboard() {
     category: expense.category as any,
     description: expense.description,
     amount: parseFloat(expense.amount),
+    paymentMethod: expense.paymentMethod,
     user: expense.user ? {
       name: `${expense.user.firstName || ""} ${expense.user.lastName || ""}`.trim() || expense.user.email || "Unknown",
       avatar: expense.user.profileImageUrl || undefined,

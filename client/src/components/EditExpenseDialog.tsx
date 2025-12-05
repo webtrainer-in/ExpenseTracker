@@ -127,20 +127,36 @@ export function EditExpenseDialog({ open, onOpenChange, expense, onSubmit }: Edi
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="edit-payment-method">Payment Method</Label>
-              <Select
-                value={paymentMethod}
-                onValueChange={(value) => setPaymentMethod(value)}
-              >
-                <SelectTrigger id="edit-payment-method" data-testid="select-edit-payment-method">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="UPI">UPI</SelectItem>
-                  <SelectItem value="CASH">Cash</SelectItem>
-                  <SelectItem value="CARD">Card</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label>Payment Method</Label>
+              <div className="grid grid-cols-3 gap-2">
+                <Button
+                  type="button"
+                  variant={paymentMethod === "UPI" ? "default" : "outline"}
+                  className="h-12 text-sm font-semibold"
+                  onClick={() => setPaymentMethod("UPI")}
+                  data-testid="button-edit-payment-upi"
+                >
+                  UPI
+                </Button>
+                <Button
+                  type="button"
+                  variant={paymentMethod === "CASH" ? "default" : "outline"}
+                  className="h-12 text-sm font-semibold"
+                  onClick={() => setPaymentMethod("CASH")}
+                  data-testid="button-edit-payment-cash"
+                >
+                  Cash
+                </Button>
+                <Button
+                  type="button"
+                  variant={paymentMethod === "CARD" ? "default" : "outline"}
+                  className="h-12 text-sm font-semibold"
+                  onClick={() => setPaymentMethod("CARD")}
+                  data-testid="button-edit-payment-card"
+                >
+                  Card
+                </Button>
+              </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="edit-date">Date</Label>
