@@ -167,6 +167,7 @@ export class DatabaseStorage implements IStorage {
         category: expenseData.category,
         description: expenseData.description,
         date: new Date(expenseData.date),
+        paymentMethod: expenseData.paymentMethod,
       })
       .returning();
     return expense;

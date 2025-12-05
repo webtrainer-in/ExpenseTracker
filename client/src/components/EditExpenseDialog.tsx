@@ -28,6 +28,7 @@ interface Expense {
   category: string;
   description: string;
   date: string | Date;
+  paymentMethod?: string;
 }
 
 interface EditExpenseDialogProps {
@@ -39,6 +40,7 @@ interface EditExpenseDialogProps {
     category: string;
     description: string;
     date: string;
+    paymentMethod: string;
   }) => void;
 }
 
@@ -49,6 +51,7 @@ export function EditExpenseDialog({ open, onOpenChange, expense, onSubmit }: Edi
   const [category, setCategory] = useState("");
   const [description, setDescription] = useState("");
   const [date, setDate] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("UPI");
 
   useEffect(() => {
     if (expense) {
@@ -57,6 +60,7 @@ export function EditExpenseDialog({ open, onOpenChange, expense, onSubmit }: Edi
       setDescription(expense.description);
       const expenseDate = new Date(expense.date);
       setDate(expenseDate.toISOString().split("T")[0]);
+      setPaymentMethod(expense.paymentMethod || "UPI");
     }
   }, [expense]);
 
@@ -68,6 +72,7 @@ export function EditExpenseDialog({ open, onOpenChange, expense, onSubmit }: Edi
         category,
         description,
         date,
+        paymentMethod,
       });
       onOpenChange(false);
     }
@@ -120,6 +125,38 @@ export function EditExpenseDialog({ open, onOpenChange, expense, onSubmit }: Edi
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Payment Method</Label>
+              <div className="grid grid-cols-3 gap-2">
+                <Button
+                  type="button"
+                  variant={paymentMethod === "UPI" ? "default" : "outline"}
+                  className="h-12 text-sm font-semibold"
+                  onClick={() => setPaymentMethod("UPI")}
+                  data-testid="button-edit-payment-upi"
+                >
+                  UPI
+                </Button>
+                <Button
+                  type="button"
+                  variant={paymentMethod === "CASH" ? "default" : "outline"}
+                  className="h-12 text-sm font-semibold"
+                  onClick={() => setPaymentMethod("CASH")}
+                  data-testid="button-edit-payment-cash"
+                >
+                  Cash
+                </Button>
+                <Button
+                  type="button"
+                  variant={paymentMethod === "CARD" ? "default" : "outline"}
+                  className="h-12 text-sm font-semibold"
+                  onClick={() => setPaymentMethod("CARD")}
+                  data-testid="button-edit-payment-card"
+                >
+                  Card
+                </Button>
+              </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="edit-date">Date</Label>

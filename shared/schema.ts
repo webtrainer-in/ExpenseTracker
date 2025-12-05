@@ -62,6 +62,7 @@ export const expenses = pgTable(
     category: varchar("category", { length: 50 }).notNull(),
     description: text("description").notNull(),
     date: timestamp("date").notNull(),
+    paymentMethod: varchar("payment_method", { length: 20 }).notNull().default("UPI"),
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow(),
   },
@@ -96,6 +97,7 @@ export const insertExpenseSchema = createInsertSchema(expenses).omit({
 }).extend({
   amount: z.number().positive(),
   date: z.string().or(z.date()),
+  paymentMethod: z.enum(["UPI", "CASH", "CARD"]).default("UPI"),
 });
 
 export const upsertUserSchema = createInsertSchema(users).omit({

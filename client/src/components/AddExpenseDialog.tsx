@@ -30,6 +30,7 @@ interface AddExpenseDialogProps {
     category: string;
     description: string;
     date: string;
+    paymentMethod: string;
   }) => void;
 }
 
@@ -40,6 +41,7 @@ export function AddExpenseDialog({ open, onOpenChange, onSubmit }: AddExpenseDia
   const [category, setCategory] = useState("");
   const [description, setDescription] = useState("");
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
+  const [paymentMethod, setPaymentMethod] = useState("UPI");
 
   useEffect(() => {
     if (categories.length > 0 && !category) {
@@ -54,10 +56,12 @@ export function AddExpenseDialog({ open, onOpenChange, onSubmit }: AddExpenseDia
       category,
       description,
       date,
+      paymentMethod,
     });
     setAmount("");
     setDescription("");
     setDate(new Date().toISOString().split("T")[0]);
+    setPaymentMethod("UPI");
     onOpenChange(false);
   };
 
@@ -108,6 +112,38 @@ export function AddExpenseDialog({ open, onOpenChange, onSubmit }: AddExpenseDia
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Payment Method</Label>
+              <div className="grid grid-cols-3 gap-2">
+                <Button
+                  type="button"
+                  variant={paymentMethod === "UPI" ? "default" : "outline"}
+                  className="h-12 text-sm font-semibold"
+                  onClick={() => setPaymentMethod("UPI")}
+                  data-testid="button-payment-upi"
+                >
+                  UPI
+                </Button>
+                <Button
+                  type="button"
+                  variant={paymentMethod === "CASH" ? "default" : "outline"}
+                  className="h-12 text-sm font-semibold"
+                  onClick={() => setPaymentMethod("CASH")}
+                  data-testid="button-payment-cash"
+                >
+                  Cash
+                </Button>
+                <Button
+                  type="button"
+                  variant={paymentMethod === "CARD" ? "default" : "outline"}
+                  className="h-12 text-sm font-semibold"
+                  onClick={() => setPaymentMethod("CARD")}
+                  data-testid="button-payment-card"
+                >
+                  Card
+                </Button>
+              </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="date">Date</Label>
