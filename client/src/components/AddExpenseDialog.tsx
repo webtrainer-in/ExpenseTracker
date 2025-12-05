@@ -30,6 +30,7 @@ interface AddExpenseDialogProps {
     category: string;
     description: string;
     date: string;
+    paymentMethod: string;
   }) => void;
 }
 
@@ -40,6 +41,7 @@ export function AddExpenseDialog({ open, onOpenChange, onSubmit }: AddExpenseDia
   const [category, setCategory] = useState("");
   const [description, setDescription] = useState("");
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
+  const [paymentMethod, setPaymentMethod] = useState("UPI");
 
   useEffect(() => {
     if (categories.length > 0 && !category) {
@@ -54,10 +56,12 @@ export function AddExpenseDialog({ open, onOpenChange, onSubmit }: AddExpenseDia
       category,
       description,
       date,
+      paymentMethod,
     });
     setAmount("");
     setDescription("");
     setDate(new Date().toISOString().split("T")[0]);
+    setPaymentMethod("UPI");
     onOpenChange(false);
   };
 
@@ -106,6 +110,22 @@ export function AddExpenseDialog({ open, onOpenChange, onSubmit }: AddExpenseDia
                       {cat.name}
                     </SelectItem>
                   ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="payment-method">Payment Method</Label>
+              <Select
+                value={paymentMethod}
+                onValueChange={(value) => setPaymentMethod(value)}
+              >
+                <SelectTrigger id="payment-method" data-testid="select-payment-method">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="UPI">UPI</SelectItem>
+                  <SelectItem value="CASH">Cash</SelectItem>
+                  <SelectItem value="CARD">Card</SelectItem>
                 </SelectContent>
               </Select>
             </div>

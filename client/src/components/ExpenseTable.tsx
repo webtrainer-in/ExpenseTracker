@@ -19,6 +19,7 @@ export interface Expense {
   category: string;
   description: string;
   amount: number;
+  paymentMethod?: string;
   user?: {
     name: string;
     avatar?: string;
@@ -43,6 +44,7 @@ export function ExpenseTable({ expenses, onEdit, onDelete, showUser = false, cur
           <TableRow>
             <TableHead>Date</TableHead>
             <TableHead>Category</TableHead>
+            <TableHead>Payment Method</TableHead>
             <TableHead className="text-right">Amount</TableHead>
             <TableHead>Description</TableHead>
             {showUser && <TableHead>User</TableHead>}
@@ -53,7 +55,7 @@ export function ExpenseTable({ expenses, onEdit, onDelete, showUser = false, cur
           {expenses.length === 0 ? (
             <TableRow>
               <TableCell
-                colSpan={showUser ? 6 : 5}
+                colSpan={showUser ? 7 : 6}
                 className="text-center text-muted-foreground py-8"
               >
                 No expenses found
@@ -73,6 +75,11 @@ export function ExpenseTable({ expenses, onEdit, onDelete, showUser = false, cur
                 </TableCell>
                 <TableCell>
                   <CategoryBadge category={expense.category} />
+                </TableCell>
+                <TableCell>
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">
+                    {expense.paymentMethod || "UPI"}
+                  </span>
                 </TableCell>
                 <TableCell className="text-right font-mono font-semibold">
                   {formatCurrency(expense.amount, currency)}

@@ -28,6 +28,7 @@ interface Expense {
   category: string;
   description: string;
   date: string | Date;
+  paymentMethod?: string;
 }
 
 interface EditExpenseDialogProps {
@@ -39,6 +40,7 @@ interface EditExpenseDialogProps {
     category: string;
     description: string;
     date: string;
+    paymentMethod: string;
   }) => void;
 }
 
@@ -49,6 +51,7 @@ export function EditExpenseDialog({ open, onOpenChange, expense, onSubmit }: Edi
   const [category, setCategory] = useState("");
   const [description, setDescription] = useState("");
   const [date, setDate] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("UPI");
 
   useEffect(() => {
     if (expense) {
@@ -57,6 +60,7 @@ export function EditExpenseDialog({ open, onOpenChange, expense, onSubmit }: Edi
       setDescription(expense.description);
       const expenseDate = new Date(expense.date);
       setDate(expenseDate.toISOString().split("T")[0]);
+      setPaymentMethod(expense.paymentMethod || "UPI");
     }
   }, [expense]);
 
@@ -68,6 +72,7 @@ export function EditExpenseDialog({ open, onOpenChange, expense, onSubmit }: Edi
         category,
         description,
         date,
+        paymentMethod,
       });
       onOpenChange(false);
     }
@@ -118,6 +123,22 @@ export function EditExpenseDialog({ open, onOpenChange, expense, onSubmit }: Edi
                       {cat.name}
                     </SelectItem>
                   ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-payment-method">Payment Method</Label>
+              <Select
+                value={paymentMethod}
+                onValueChange={(value) => setPaymentMethod(value)}
+              >
+                <SelectTrigger id="edit-payment-method" data-testid="select-edit-payment-method">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="UPI">UPI</SelectItem>
+                  <SelectItem value="CASH">Cash</SelectItem>
+                  <SelectItem value="CARD">Card</SelectItem>
                 </SelectContent>
               </Select>
             </div>
