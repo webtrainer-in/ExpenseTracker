@@ -13,6 +13,14 @@ export interface DetailRow {
   user?: string;
 }
 
+export interface UserSummaryRow {
+  userName: string;
+  amount: number;
+  count: number;
+  percentage: number;
+}
+
+
 export function exportSummaryToCSV(
   data: SummaryRow[],
   month: string,
@@ -34,6 +42,29 @@ export function exportSummaryToCSV(
 
   downloadCSV(csv, `expense-summary-${month}.csv`);
 }
+
+export function exportUserSummaryToCSV(
+  data: UserSummaryRow[],
+  month: string,
+  currency: string = "USD"
+): void {
+  const headers = ["User", "Amount", "Count", "Percentage"];
+  const rows = data.map((item) => [
+    item.userName,
+    item.amount.toFixed(2),
+    item.count.toString(),
+    `${item.percentage}%`,
+  ]);
+
+  const total = data.reduce((sum, item) => sum + item.amount, 0);
+  const totalCount = data.reduce((sum, item) => sum + item.count, 0);
+  rows.push(["Total", total.toFixed(2), totalCount.toString(), "100%"]);
+
+  const csv = [headers, ...rows].map((row) => row.map((cell) => `"${cell}"`).join(",")).join("\n");
+
+  downloadCSV(csv, `user-summary-${month}.csv`);
+}
+
 
 export function exportDetailToCSV(
   data: DetailRow[],
