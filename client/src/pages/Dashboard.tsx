@@ -16,6 +16,7 @@ import { EditExpenseDialog } from "@/components/EditExpenseDialog";
 import { FilterBar } from "@/components/FilterBar";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DollarSign, Calendar, TrendingUp, Plus, FileText, BarChart3, Table } from "lucide-react";
 import type { Expense, User } from "@shared/schema";
 import { useSettings } from "@/hooks/useSettings";
@@ -39,6 +40,7 @@ export default function Dashboard() {
   const [selectedUser, setSelectedUser] = useState("all");
   const [activeTab, setActiveTab] = useState("data-entry");
   const [summarySubTab, setSummarySubTab] = useState("category");
+  const [categorySummaryUserFilter, setCategorySummaryUserFilter] = useState("all");
   
   // Initialize with current month
   const now = new Date();
@@ -281,11 +283,26 @@ export default function Dashboard() {
     count: data.count,
   }));
 
-  // Prepare category expense table data
-  const categoryTableData = Object.entries(categoryTotals).map(([category, data]: [string, any]) => ({
+  // Prepare category expense table data (filtered by user if selected)
+  const filteredCategoryExpenses = categorySummaryUserFilter === "all" 
+    ? selectedMonthExpenses 
+    : selectedMonthExpenses.filter(expense => expense.user?.id === categorySummaryUserFilter);
+
+  const filteredCategoryTotals = filteredCategoryExpenses.reduce((acc: any, expense) => {
+    const category = expense.category;
+    if (!acc[category]) {
+      acc[category] = { amount: 0, count: 0 };
+    }
+    acc[category].amount += parseFloat(expense.amount);
+    acc[category].count += 1;
+    return acc;
+  }, {});
+
+  const filteredTotal = Object.values(filteredCategoryTotals).reduce((sum: number, item: any) => sum + item.amount, 0) as number;
+  const categoryTableData = Object.entries(filteredCategoryTotals).map(([category, data]: [string, any]) => ({
     category: category.charAt(0).toUpperCase() + category.slice(1),
     amount: data.amount,
-    percentage: total > 0 ? Math.round((data.amount / total) * 100) : 0,
+    percentage: filteredTotal > 0 ? Math.round((data.amount / filteredTotal) * 100) : 0,
     count: data.count,
   }));
 
@@ -476,10 +493,30 @@ export default function Dashboard() {
                 </TabsList>
 
                 <TabsContent value="category" className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <h3 className="text-lg font-semibold">
-                      Category-wise Breakdown - {new Date(selectedYear, selectedMonthNum - 1).toLocaleDateString("en-US", { month: "long", year: "numeric" })}
-                    </h3>
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 flex-1">
+                      <h3 className="text-lg font-semibold whitespace-nowrap">
+                        Category-wise Breakdown - {new Date(selectedYear, selectedMonthNum - 1).toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+                      </h3>
+                      {isAdmin && (
+                        <Select value={categorySummaryUserFilter} onValueChange={setCategorySummaryUserFilter}>
+                          <SelectTrigger className="w-full sm:w-[200px]">
+                            <SelectValue placeholder="All Users" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All Users</SelectItem>
+                            {allExpenses
+                              .map(e => e.user)
+                              .filter((u, index, self) => u && self.findIndex(x => x?.id === u?.id) === index)
+                              .map((u) => (
+                                <SelectItem key={u!.id} value={u!.id}>
+                                  {`${u!.firstName || ""} ${u!.lastName || ""}`.trim() || u!.email || "Unknown"}
+                                </SelectItem>
+                              ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    </div>
                     <div className="flex gap-2">
                       <Button
                         variant="outline"
@@ -498,7 +535,7 @@ export default function Dashboard() {
                         variant="outline"
                         size="sm"
                         onClick={() => {
-                          const detailData = selectedMonthExpenses.map((expense) => ({
+                          const detailData = filteredCategoryExpenses.map((expense) => ({
                             date: new Date(expense.date).toLocaleDateString(),
                             category: expense.category.charAt(0).toUpperCase() + expense.category.slice(1),
                             description: expense.description,
@@ -519,7 +556,7 @@ export default function Dashboard() {
                   <CategoryExpenseTable
                     data={categoryTableData}
                     currency={settings?.currency || "USD"}
-                    totalAmount={total}
+                    totalAmount={filteredTotal}
                     onCountClick={(category) => {
                       setExpenseBookCategory(category);
                       setExpenseBookMonth(selectedMonthYear);
