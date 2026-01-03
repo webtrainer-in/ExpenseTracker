@@ -2,6 +2,18 @@ import { Badge } from "@/components/ui/badge";
 import { getIconForCategory } from "@/lib/iconMap";
 import { useCategories } from "@/hooks/useCategories";
 
+export type ExpenseCategory = 
+  | "groceries"
+  | "utilities"
+  | "transportation"
+  | "entertainment"
+  | "dining"
+  | "healthcare"
+  | "education"
+  | "travel"
+  | "bills"
+  | "other";
+
 interface CategoryBadgeProps {
   category: string;
   testId?: string;

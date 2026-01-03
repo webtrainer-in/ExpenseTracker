@@ -294,15 +294,14 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
+
   async getAllUsersStats(): Promise<{
     total: number;
     thisMonth: number;
-    lastMonth: number;
+    byUser: Array<{ user: User; total: number }>;
   }> {
     const now = new Date();
     const firstDayThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const firstDayLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const lastDayLastMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
 
     const [totalResult] = await db
       .select({ sum: sql<string>`COALESCE(SUM(${expenses.amount}), 0)` })
@@ -313,20 +312,30 @@ export class DatabaseStorage implements IStorage {
       .from(expenses)
       .where(gte(expenses.date, firstDayThisMonth));
 
-    const [lastMonthResult] = await db
-      .select({ sum: sql<string>`COALESCE(SUM(${expenses.amount}), 0)` })
+    // Get expenses grouped by user
+    const userStats = await db
+      .select({
+        userId: expenses.userId,
+        sum: sql<string>`COALESCE(SUM(${expenses.amount}), 0)`,
+      })
       .from(expenses)
-      .where(
-        and(
-          gte(expenses.date, firstDayLastMonth),
-          lte(expenses.date, lastDayLastMonth)
-        )
-      );
+      .groupBy(expenses.userId);
+
+    // Fetch user details for each user with expenses
+    const byUser = await Promise.all(
+      userStats.map(async (stat) => {
+        const user = await this.getUser(stat.userId);
+        return {
+          user: user!,
+          total: parseFloat(stat.sum) || 0,
+        };
+      })
+    );
 
     return {
       total: parseFloat(totalResult.sum) || 0,
       thisMonth: parseFloat(thisMonthResult.sum) || 0,
-      lastMonth: parseFloat(lastMonthResult.sum) || 0,
+      byUser,
     };
   }
 }

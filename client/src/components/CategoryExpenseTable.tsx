@@ -63,7 +63,7 @@ export function CategoryExpenseTable({
                   </TableCell>
                   <TableCell className="text-right">
                     <Button
-                      variant="link"
+                      variant="ghost"
                       size="sm"
                       className="h-auto p-0 text-blue-600 hover:text-blue-800 underline cursor-pointer"
                       onClick={() => onCountClick?.(item.category.toLowerCase())}
