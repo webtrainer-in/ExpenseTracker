@@ -430,8 +430,8 @@ export default function Dashboard() {
             
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <StatCard
-                title={isAdmin ? "Total Family Spending" : "Total Spent"}
-                value={formatCurrency(totalSpent, settings?.currency || "USD")}
+                title={isAdmin ? "Average Monthly Spending" : "Average Monthly Spent"}
+                value={formatCurrency(stats?.averageMonthly || 0, settings?.currency || "USD")}
                 icon={DollarSign}
                 testId="stat-total"
               />

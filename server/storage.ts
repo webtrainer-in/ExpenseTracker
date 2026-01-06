@@ -260,11 +260,13 @@ export class DatabaseStorage implements IStorage {
     total: number;
     thisMonth: number;
     lastMonth: number;
+    averageMonthly: number;
   }> {
     const now = new Date();
     const firstDayThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const firstDayLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const lastDayLastMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+    const firstDayLast12Months = new Date(now.getFullYear(), now.getMonth() - 12, 1);
 
     const [totalResult] = await db
       .select({ sum: sql<string>`COALESCE(SUM(${expenses.amount}), 0)` })
@@ -287,10 +289,60 @@ export class DatabaseStorage implements IStorage {
         )
       );
 
+    // Get expenses for last 12 months (excluding current month)
+    const [last12MonthsResult] = await db
+      .select({ sum: sql<string>`COALESCE(SUM(${expenses.amount}), 0)` })
+      .from(expenses)
+      .where(
+        and(
+          eq(expenses.userId, userId),
+          gte(expenses.date, firstDayLast12Months),
+          lte(expenses.date, lastDayLastMonth)
+        )
+      );
+
+    // Get the earliest expense date for this user
+    const [earliestExpense] = await db
+      .select({ date: expenses.date })
+      .from(expenses)
+      .where(eq(expenses.userId, userId))
+      .orderBy(expenses.date)
+      .limit(1);
+
+    // Calculate number of completed months (excluding current month)
+    let completedMonths = 0;
+    let startDateForAverage = firstDayLast12Months;
+    
+    if (earliestExpense) {
+      const earliestDate = new Date(earliestExpense.date);
+      const monthsDiff = (now.getFullYear() - earliestDate.getFullYear()) * 12 + 
+                        (now.getMonth() - earliestDate.getMonth());
+      completedMonths = Math.min(monthsDiff, 12);
+      
+      // Use the later of: earliest expense date or 12 months ago
+      startDateForAverage = earliestDate > firstDayLast12Months ? earliestDate : firstDayLast12Months;
+    }
+
+    // Get expenses for the calculated period (excluding current month)
+    const [averagePeriodResult] = await db
+      .select({ sum: sql<string>`COALESCE(SUM(${expenses.amount}), 0)` })
+      .from(expenses)
+      .where(
+        and(
+          eq(expenses.userId, userId),
+          gte(expenses.date, startDateForAverage),
+          lte(expenses.date, lastDayLastMonth)
+        )
+      );
+
+    const averagePeriodTotal = parseFloat(averagePeriodResult.sum) || 0;
+    const averageMonthly = completedMonths > 0 ? averagePeriodTotal / completedMonths : 0;
+
     return {
       total: parseFloat(totalResult.sum) || 0,
       thisMonth: parseFloat(thisMonthResult.sum) || 0,
       lastMonth: parseFloat(lastMonthResult.sum) || 0,
+      averageMonthly,
     };
   }
 
@@ -299,12 +351,16 @@ export class DatabaseStorage implements IStorage {
     total: number;
     thisMonth: number;
     lastMonth: number;
+    averageMonthly: number;
     byUser: Array<{ user: User; total: number }>;
   }> {
     const now = new Date();
     const firstDayThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const firstDayLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const lastDayLastMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+
+    // Calculate date range for last 12 months (excluding current month)
+    const firstDayLast12Months = new Date(now.getFullYear(), now.getMonth() - 12, 1);
 
     const [totalResult] = await db
       .select({ sum: sql<string>`COALESCE(SUM(${expenses.amount}), 0)` })
@@ -324,6 +380,44 @@ export class DatabaseStorage implements IStorage {
           lte(expenses.date, lastDayLastMonth)
         )
       );
+
+    // Get the earliest expense date to calculate number of completed months
+    const [earliestExpense] = await db
+      .select({ date: expenses.date })
+      .from(expenses)
+      .orderBy(expenses.date)
+      .limit(1);
+
+    // Calculate number of completed months (excluding current month)
+    let completedMonths = 0;
+    let startDateForAverage = firstDayLast12Months;
+    
+    if (earliestExpense) {
+      const earliestDate = new Date(earliestExpense.date);
+      const monthsDiff = (now.getFullYear() - earliestDate.getFullYear()) * 12 + 
+                        (now.getMonth() - earliestDate.getMonth());
+      // Don't count current month, and cap at 12
+      completedMonths = Math.min(monthsDiff, 12);
+      
+      // Use the later of: earliest expense date or 12 months ago
+      // This ensures we don't query for dates before expenses exist
+      startDateForAverage = earliestDate > firstDayLast12Months ? earliestDate : firstDayLast12Months;
+    }
+
+    // Get expenses for the calculated period (excluding current month)
+    const [averagePeriodResult] = await db
+      .select({ sum: sql<string>`COALESCE(SUM(${expenses.amount}), 0)` })
+      .from(expenses)
+      .where(
+        and(
+          gte(expenses.date, startDateForAverage),
+          lte(expenses.date, lastDayLastMonth)
+        )
+      );
+
+    // Calculate average monthly spending
+    const averagePeriodTotal = parseFloat(averagePeriodResult.sum) || 0;
+    const averageMonthly = completedMonths > 0 ? averagePeriodTotal / completedMonths : 0;
 
     // Get expenses grouped by user
     const userStats = await db
@@ -349,6 +443,7 @@ export class DatabaseStorage implements IStorage {
       total: parseFloat(totalResult.sum) || 0,
       thisMonth: parseFloat(thisMonthResult.sum) || 0,
       lastMonth: parseFloat(lastMonthResult.sum) || 0,
+      averageMonthly,
       byUser,
     };
   }
