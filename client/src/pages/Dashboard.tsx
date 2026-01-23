@@ -14,12 +14,19 @@ import { ExpenseChart } from "@/components/ExpenseChart";
 import { AddExpenseDialog } from "@/components/AddExpenseDialog";
 import { EditExpenseDialog } from "@/components/EditExpenseDialog";
 import { FilterBar } from "@/components/FilterBar";
+import { WalletBalanceCard } from "@/components/WalletBalanceCard";
+import { AddMoneyDialog } from "@/components/AddMoneyDialog";
+import { NegativeBalanceAlert } from "@/components/NegativeBalanceAlert";
+import { ReserveWalletCard } from "@/components/ReserveWalletCard";
+import { AddMoneyToReserveDialog } from "@/components/AddMoneyToReserveDialog";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DollarSign, Calendar, TrendingUp, Plus, FileText, BarChart3, Table } from "lucide-react";
 import type { Expense, User } from "@shared/schema";
 import { useSettings } from "@/hooks/useSettings";
+import { useWallet } from "@/hooks/useWallet";
+import { useReserve } from "@/hooks/useReserve";
 import { formatCurrency } from "@/lib/currency";
 import { exportSummaryToCSV, exportDetailToCSV, exportUserSummaryToCSV } from "@/lib/csvExport";
 
@@ -41,11 +48,23 @@ export default function Dashboard() {
   const [activeTab, setActiveTab] = useState("data-entry");
   const [summarySubTab, setSummarySubTab] = useState("category");
   const [categorySummaryUserFilter, setCategorySummaryUserFilter] = useState("all");
+  const [addMoneyDialogOpen, setAddMoneyDialogOpen] = useState(false);
+  const [addMoneyToReserveDialogOpen, setAddMoneyToReserveDialogOpen] = useState(false);
   
   // Initialize with current month
   const now = new Date();
   const defaultMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   const [selectedMonthYear, setSelectedMonthYear] = useState(defaultMonth);
+
+  // Wallet hook
+  const { balance, addMoney, isLoading: walletLoading } = useWallet();
+
+  // Reserve wallet hook (admin only)
+  const { 
+    balance: reserveBalance, 
+    addMoney: addMoneyToReserve, 
+    isLoadingBalance: reserveLoading 
+  } = useReserve();
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -469,6 +488,38 @@ export default function Dashboard() {
                     currency={settings?.currency || "USD"}
                   />
                 </div>
+                
+                {/* Wallet Balance Section */}
+                <div className="mt-6">
+                  {/* Negative Balance Alert */}
+                  {balance && parseFloat(balance.currentBalance) < 0 && (
+                    <NegativeBalanceAlert
+                      balance={parseFloat(balance.currentBalance)}
+                      currency={settings?.currency || "USD"}
+                      onAddMoney={() => setAddMoneyDialogOpen(true)}
+                    />
+                  )}
+
+                  {/* Wallet Cards Grid */}
+                  <div className={`grid gap-4 ${user?.role === "admin" ? "grid-cols-1 md:grid-cols-2" : "grid-cols-1"} mt-4`}>
+                    <WalletBalanceCard
+                      balance={parseFloat(balance?.currentBalance || "0")}
+                      currency={settings?.currency || "USD"}
+                      onAddMoney={() => setAddMoneyDialogOpen(true)}
+                      isLoading={walletLoading}
+                    />
+                    
+                    {/* Reserve Wallet Card (Admin Only) */}
+                    {user?.role === "admin" && (
+                      <ReserveWalletCard
+                        balance={parseFloat(reserveBalance?.currentBalance || "0")}
+                        currency={settings?.currency || "USD"}
+                        onAddMoney={() => setAddMoneyToReserveDialogOpen(true)}
+                        isLoading={reserveLoading}
+                      />
+                    )}
+                  </div>
+                </div>
               </>
             ) : (
               <div className="text-center py-12 text-muted-foreground">
@@ -652,6 +703,24 @@ export default function Dashboard() {
         expense={selectedExpense}
         onSubmit={(id, data) => updateExpenseMutation.mutate({ id, data })}
       />
+
+      <AddMoneyDialog
+        open={addMoneyDialogOpen}
+        onOpenChange={setAddMoneyDialogOpen}
+        onSubmit={(data) => addMoney(data)}
+      />
+
+      {user?.role === "admin" && (
+        <AddMoneyToReserveDialog
+          open={addMoneyToReserveDialogOpen}
+          onOpenChange={setAddMoneyToReserveDialogOpen}
+          onSubmit={(data) => addMoneyToReserve(data)}
+          adminWalletBalance={parseFloat(balance?.currentBalance || "0")}
+          adminUserId={user.id}
+          adminUserName={user.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : user.email || 'Admin'}
+          currency={settings?.currency || "USD"}
+        />
+      )}
     </div>
   );
 }

@@ -3,6 +3,10 @@ import {
   expenses,
   categories,
   settings,
+  walletBalances,
+  walletTransactions,
+  reserveWallet,
+  reserveTransactions,
   type User,
   type UpsertUser,
   type Expense,
@@ -11,6 +15,12 @@ import {
   type InsertCategory,
   type Settings,
   type UpdateSettings,
+  type WalletBalance,
+  type WalletTransaction,
+  type InsertWalletTransaction,
+  type ReserveWallet,
+  type ReserveTransaction,
+  type InsertReserveTransaction,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, gte, lte, sql } from "drizzle-orm";
@@ -18,6 +28,7 @@ import { eq, desc, and, gte, lte, sql } from "drizzle-orm";
 export interface IStorage {
   // User operations (required for Replit Auth)
   getUser(id: string): Promise<User | undefined>;
+  getAllUsers(): Promise<User[]>;
   upsertUser(user: UpsertUser): Promise<User>;
 
   // Settings operations
@@ -60,6 +71,45 @@ export interface IStorage {
     thisMonth: number;
     byUser: Array<{ user: User; total: number }>;
   }>;
+
+  // Wallet operations
+  getWalletBalance(userId: string): Promise<WalletBalance | undefined>;
+  initializeWalletBalance(userId: string, initialBalance?: number): Promise<WalletBalance>;
+  createWalletTransaction(data: {
+    userId: string;
+    type: 'deposit' | 'withdrawal';
+    amount: number;
+    description: string;
+    relatedExpenseId?: string;
+    date: Date;
+  }): Promise<WalletTransaction>;
+  getWalletTransactions(userId: string, options?: {
+    type?: 'deposit' | 'withdrawal';
+    startDate?: Date;
+    endDate?: Date;
+  }): Promise<WalletTransaction[]>;
+  getAllWalletTransactions(options?: {
+    startDate?: Date;
+    endDate?: Date;
+  }): Promise<Array<WalletTransaction & { user: User }>>;
+  reverseWalletTransaction(expenseId: string): Promise<void>;
+
+  // Reserve wallet operations
+  getReserveBalance(): Promise<ReserveWallet | undefined>;
+  initializeReserveWallet(): Promise<ReserveWallet>;
+  createReserveTransaction(data: {
+    type: 'deposit' | 'withdrawal';
+    amount: number;
+    description: string;
+    performedByUserId: string;
+    relatedWalletTransactionId?: string;
+    date: Date;
+  }): Promise<ReserveTransaction>;
+  getReserveTransactions(options?: {
+    type?: 'deposit' | 'withdrawal';
+    startDate?: Date;
+    endDate?: Date;
+  }): Promise<ReserveTransaction[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -81,6 +131,10 @@ export class DatabaseStorage implements IStorage {
       })
       .returning();
     return user;
+  }
+
+  async getAllUsers(): Promise<User[]> {
+    return await db.select().from(users).orderBy(users.email);
   }
 
   async getSettings(): Promise<Settings> {
@@ -170,6 +224,19 @@ export class DatabaseStorage implements IStorage {
         paymentMethod: expenseData.paymentMethod,
       })
       .returning();
+    
+    // If payment method is CASH, deduct from wallet
+    if (expenseData.paymentMethod === 'CASH') {
+      await this.createWalletTransaction({
+        userId: expenseData.userId,
+        type: 'withdrawal',
+        amount: expenseData.amount,
+        description: `Expense: ${expenseData.description}`,
+        relatedExpenseId: expense.id,
+        date: new Date(expenseData.date),
+      });
+    }
+    
     return expense;
   }
 
@@ -232,6 +299,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateExpense(id: string, expenseData: Partial<InsertExpense>): Promise<Expense> {
+    // Get the original expense to check payment method changes
+    const original = await this.getExpense(id);
+    if (!original) {
+      throw new Error('Expense not found');
+    }
+
     const updateData: any = { ...expenseData, updatedAt: new Date() };
     if (expenseData.date) {
       updateData.date = new Date(expenseData.date);
@@ -242,10 +315,55 @@ export class DatabaseStorage implements IStorage {
       .set(updateData)
       .where(eq(expenses.id, id))
       .returning();
+    
+    // Handle wallet transaction changes
+    const oldPaymentMethod = original.paymentMethod;
+    const newPaymentMethod = expenseData.paymentMethod || oldPaymentMethod;
+    const oldAmount = parseFloat(original.amount);
+    const newAmount = expenseData.amount || oldAmount;
+
+    // If payment method changed FROM cash TO something else, reverse the withdrawal
+    if (oldPaymentMethod === 'CASH' && newPaymentMethod !== 'CASH') {
+      await this.reverseWalletTransaction(id);
+    }
+    // If payment method changed FROM something else TO cash, create withdrawal
+    else if (oldPaymentMethod !== 'CASH' && newPaymentMethod === 'CASH') {
+      await this.createWalletTransaction({
+        userId: original.userId,
+        type: 'withdrawal',
+        amount: newAmount,
+        description: `Expense: ${expenseData.description || original.description}`,
+        relatedExpenseId: id,
+        date: new Date(expenseData.date || original.date),
+      });
+    }
+    // If payment method is still CASH but amount changed, adjust the difference
+    else if (oldPaymentMethod === 'CASH' && newPaymentMethod === 'CASH' && oldAmount !== newAmount) {
+      const difference = newAmount - oldAmount;
+      if (difference !== 0) {
+        await this.createWalletTransaction({
+          userId: original.userId,
+          type: difference > 0 ? 'withdrawal' : 'deposit',
+          amount: Math.abs(difference),
+          description: `Expense adjustment: ${expenseData.description || original.description}`,
+          relatedExpenseId: id,
+          date: new Date(),
+        });
+      }
+    }
+    
     return expense;
   }
 
   async deleteExpense(id: string): Promise<void> {
+    // Get the expense to check if it was a cash payment
+    const expense = await this.getExpense(id);
+    
+    // If it was a cash expense, reverse the wallet transaction
+    if (expense && expense.paymentMethod === 'CASH') {
+      await this.reverseWalletTransaction(id);
+    }
+    
     await db.delete(expenses).where(eq(expenses.id, id));
   }
 
@@ -446,6 +564,252 @@ export class DatabaseStorage implements IStorage {
       averageMonthly,
       byUser,
     };
+  }
+
+  // Wallet operations
+  async getWalletBalance(userId: string): Promise<WalletBalance | undefined> {
+    const [balance] = await db
+      .select()
+      .from(walletBalances)
+      .where(eq(walletBalances.userId, userId));
+    return balance;
+  }
+
+  async initializeWalletBalance(userId: string, initialBalance: number = 0): Promise<WalletBalance> {
+    // Try to get existing balance first
+    const existing = await this.getWalletBalance(userId);
+    if (existing) {
+      return existing;
+    }
+
+    // Create new wallet balance
+    const [balance] = await db
+      .insert(walletBalances)
+      .values({
+        userId,
+        currentBalance: initialBalance.toString(),
+      })
+      .returning();
+    return balance;
+  }
+
+  async createWalletTransaction(data: {
+    userId: string;
+    type: 'deposit' | 'withdrawal';
+    amount: number;
+    description: string;
+    relatedExpenseId?: string;
+    date: Date;
+  }): Promise<WalletTransaction> {
+    // Get or initialize wallet balance
+    let balance = await this.getWalletBalance(data.userId);
+    if (!balance) {
+      balance = await this.initializeWalletBalance(data.userId, 0);
+    }
+
+    const currentBalance = parseFloat(balance.currentBalance);
+    const newBalance = data.type === 'deposit' 
+      ? currentBalance + data.amount 
+      : currentBalance - data.amount;
+
+    // Create transaction
+    const [transaction] = await db
+      .insert(walletTransactions)
+      .values({
+        userId: data.userId,
+        type: data.type,
+        amount: data.amount.toString(),
+        description: data.description,
+        relatedExpenseId: data.relatedExpenseId,
+        balanceAfter: newBalance.toString(),
+        date: data.date,
+      })
+      .returning();
+
+    // Update wallet balance
+    await db
+      .update(walletBalances)
+      .set({ 
+        currentBalance: newBalance.toString(),
+        updatedAt: new Date(),
+      })
+      .where(eq(walletBalances.userId, data.userId));
+
+    return transaction;
+  }
+
+  async getWalletTransactions(
+    userId: string,
+    options?: {
+      type?: 'deposit' | 'withdrawal';
+      startDate?: Date;
+      endDate?: Date;
+    }
+  ): Promise<WalletTransaction[]> {
+    const conditions = [eq(walletTransactions.userId, userId)];
+
+    if (options?.type) {
+      conditions.push(eq(walletTransactions.type, options.type));
+    }
+    if (options?.startDate) {
+      conditions.push(gte(walletTransactions.date, options.startDate));
+    }
+    if (options?.endDate) {
+      conditions.push(lte(walletTransactions.date, options.endDate));
+    }
+
+    return await db
+      .select()
+      .from(walletTransactions)
+      .where(and(...conditions))
+      .orderBy(desc(walletTransactions.date));
+  }
+
+  async getAllWalletTransactions(options?: {
+    startDate?: Date;
+    endDate?: Date;
+  }): Promise<Array<WalletTransaction & { user: User }>> {
+    const conditions = [];
+
+    if (options?.startDate) {
+      conditions.push(gte(walletTransactions.date, options.startDate));
+    }
+    if (options?.endDate) {
+      conditions.push(lte(walletTransactions.date, options.endDate));
+    }
+
+    const result = await db
+      .select()
+      .from(walletTransactions)
+      .leftJoin(users, eq(walletTransactions.userId, users.id))
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(walletTransactions.date));
+
+    return result.map((row) => ({
+      ...row.wallet_transactions,
+      user: row.users!,
+    }));
+  }
+
+  async reverseWalletTransaction(expenseId: string): Promise<void> {
+    // Find the wallet transaction related to this expense
+    const [transaction] = await db
+      .select()
+      .from(walletTransactions)
+      .where(eq(walletTransactions.relatedExpenseId, expenseId));
+
+    if (!transaction) {
+      return; // No wallet transaction to reverse
+    }
+
+    // Create a reverse transaction (opposite type)
+    const reverseType = transaction.type === 'withdrawal' ? 'deposit' : 'withdrawal';
+    await this.createWalletTransaction({
+      userId: transaction.userId,
+      type: reverseType,
+      amount: parseFloat(transaction.amount),
+      description: `Reversed: ${transaction.description}`,
+      date: new Date(),
+    });
+  }
+
+  // Reserve wallet operations
+  async getReserveBalance(): Promise<ReserveWallet | undefined> {
+    const [reserve] = await db.select().from(reserveWallet).where(eq(reserveWallet.id, 'reserve'));
+    return reserve;
+  }
+
+  async initializeReserveWallet(): Promise<ReserveWallet> {
+    const existing = await this.getReserveBalance();
+    if (existing) {
+      return existing;
+    }
+
+    const [newReserve] = await db
+      .insert(reserveWallet)
+      .values({
+        id: 'reserve',
+        currentBalance: '0',
+      })
+      .returning();
+
+    return newReserve;
+  }
+
+  async createReserveTransaction(data: {
+    type: 'deposit' | 'withdrawal';
+    amount: number;
+    description: string;
+    performedByUserId: string;
+    relatedWalletTransactionId?: string;
+    date: Date;
+  }): Promise<ReserveTransaction> {
+    // Get current reserve balance
+    let reserve = await this.getReserveBalance();
+    if (!reserve) {
+      reserve = await this.initializeReserveWallet();
+    }
+
+    const currentBalance = parseFloat(reserve.currentBalance);
+    const newBalance = data.type === 'deposit' 
+      ? currentBalance + data.amount 
+      : currentBalance - data.amount;
+
+    // Create the transaction
+    const [transaction] = await db
+      .insert(reserveTransactions)
+      .values({
+        type: data.type,
+        amount: data.amount.toString(),
+        description: data.description,
+        performedByUserId: data.performedByUserId,
+        relatedWalletTransactionId: data.relatedWalletTransactionId,
+        balanceAfter: newBalance.toString(),
+        date: data.date,
+      })
+      .returning();
+
+    // Update reserve balance
+    await db
+      .update(reserveWallet)
+      .set({
+        currentBalance: newBalance.toString(),
+        updatedAt: new Date(),
+      })
+      .where(eq(reserveWallet.id, 'reserve'));
+
+    return transaction;
+  }
+
+  async getReserveTransactions(options?: {
+    type?: 'deposit' | 'withdrawal';
+    startDate?: Date;
+    endDate?: Date;
+  }): Promise<ReserveTransaction[]> {
+    const conditions = [];
+
+    if (options?.type) {
+      conditions.push(eq(reserveTransactions.type, options.type));
+    }
+
+    if (options?.startDate) {
+      conditions.push(gte(reserveTransactions.date, options.startDate));
+    }
+
+    if (options?.endDate) {
+      conditions.push(lte(reserveTransactions.date, options.endDate));
+    }
+
+    const query = db
+      .select()
+      .from(reserveTransactions)
+      .orderBy(desc(reserveTransactions.date));
+
+    if (conditions.length > 0) {
+      return await query.where(and(...conditions));
+    }
+
+    return await query;
   }
 }
 
