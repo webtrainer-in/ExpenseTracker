@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated, withAuth } from "./clerkAuth";
-import { insertExpenseSchema, insertCategorySchema, updateCategorySchema, updateSettingsSchema } from "@shared/schema";
+import { insertExpenseSchema, insertCategorySchema, updateCategorySchema, updateSettingsSchema, insertWalletTransactionSchema } from "@shared/schema";
 import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -303,6 +303,95 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching stats:", error);
       res.status(500).json({ message: "Failed to fetch stats" });
+    }
+  });
+
+  // Wallet routes
+  app.get("/api/wallet/balance", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.auth.userId;
+      let balance = await storage.getWalletBalance(userId);
+      
+      // Initialize wallet if doesn't exist
+      if (!balance) {
+        balance = await storage.initializeWalletBalance(userId, 0);
+      }
+      
+      res.json(balance);
+    } catch (error) {
+      console.error("Error fetching wallet balance:", error);
+      res.status(500).json({ message: "Failed to fetch wallet balance" });
+    }
+  });
+
+  app.post("/api/wallet/deposit", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.auth.userId;
+      
+      // Validate only the request body (amount, description, date)
+      const validatedData = insertWalletTransactionSchema.parse(req.body);
+
+      const transaction = await storage.createWalletTransaction({
+        userId,
+        type: "deposit",
+        amount: validatedData.amount,
+        description: validatedData.description,
+        date: new Date(validatedData.date),
+      });
+
+      const newBalance = await storage.getWalletBalance(userId);
+      
+      res.status(201).json({ 
+        transaction, 
+        newBalance: newBalance?.currentBalance || "0" 
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid deposit data", errors: error.errors });
+      }
+      console.error("Error creating deposit:", error);
+      res.status(500).json({ message: "Failed to add money to wallet" });
+    }
+  });
+
+  app.get("/api/wallet/transactions", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.auth.userId;
+      const { type, startDate, endDate } = req.query;
+
+      const transactions = await storage.getWalletTransactions(userId, {
+        type: type as 'deposit' | 'withdrawal' | undefined,
+        startDate: startDate ? new Date(startDate as string) : undefined,
+        endDate: endDate ? new Date(endDate as string) : undefined,
+      });
+
+      res.json(transactions);
+    } catch (error) {
+      console.error("Error fetching wallet transactions:", error);
+      res.status(500).json({ message: "Failed to fetch wallet transactions" });
+    }
+  });
+
+  app.get("/api/wallet/transactions/all", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.auth.userId;
+      const user = await storage.getUser(userId);
+
+      if (!user || user.role !== "admin") {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+
+      const { startDate, endDate } = req.query;
+
+      const transactions = await storage.getAllWalletTransactions({
+        startDate: startDate ? new Date(startDate as string) : undefined,
+        endDate: endDate ? new Date(endDate as string) : undefined,
+      });
+
+      res.json(transactions);
+    } catch (error) {
+      console.error("Error fetching all wallet transactions:", error);
+      res.status(500).json({ message: "Failed to fetch wallet transactions" });
     }
   });
 
