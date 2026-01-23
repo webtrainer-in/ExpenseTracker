@@ -46,6 +46,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Users route (for admin to fetch all users)
+  app.get("/api/users", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.auth.userId;
+      const currentUser = await storage.getUser(userId);
+
+      // Only admin can fetch all users
+      if (!currentUser || currentUser.role !== "admin") {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+
+      const users = await storage.getAllUsers();
+      res.json(users);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+      res.status(500).json({ message: "Failed to fetch users" });
+    }
+  });
+
   // Settings routes
   app.get("/api/settings", isAuthenticated, async (req: any, res) => {
     try {
@@ -309,12 +328,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Wallet routes
   app.get("/api/wallet/balance", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.auth.userId;
-      let balance = await storage.getWalletBalance(userId);
+      const authUserId = req.auth.userId;
+      const requestedUserId = req.query.userId as string | undefined;
+      
+      // Determine which user's balance to fetch
+      let targetUserId = authUserId;
+      
+      // If requesting another user's balance, verify admin access
+      if (requestedUserId && requestedUserId !== authUserId) {
+        const authUser = await storage.getUser(authUserId);
+        if (!authUser || authUser.role !== "admin") {
+          return res.status(403).json({ message: "Admin access required to view other users' balances" });
+        }
+        targetUserId = requestedUserId;
+      }
+      
+      let balance = await storage.getWalletBalance(targetUserId);
       
       // Initialize wallet if doesn't exist
       if (!balance) {
-        balance = await storage.initializeWalletBalance(userId, 0);
+        balance = await storage.initializeWalletBalance(targetUserId, 0);
       }
       
       res.json(balance);
@@ -458,26 +491,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const validatedData = insertReserveTransactionSchema.parse(req.body);
       const source = req.body.source; // ATM Withdrawal, Added from Wallet, Others
+      const selectedUserId = req.body.selectedUserId; // Optional: which user's wallet to deduct from
 
-      // If source is "Added from Wallet", deduct from admin's personal wallet
+      // If source is "Added from Wallet", deduct from specified user's wallet (or admin's if not specified)
       if (source === "Added from Wallet") {
-        const adminWallet = await storage.getWalletBalance(userId);
-        const adminBalance = adminWallet ? parseFloat(adminWallet.currentBalance) : 0;
+        // Determine which user's wallet to deduct from
+        const targetUserId = selectedUserId || userId;
+        
+        const targetWallet = await storage.getWalletBalance(targetUserId);
+        const targetBalance = targetWallet ? parseFloat(targetWallet.currentBalance) : 0;
 
-        if (adminBalance < validatedData.amount) {
+        if (targetBalance < validatedData.amount) {
           return res.status(400).json({ 
             message: "Insufficient wallet balance",
             required: validatedData.amount,
-            available: adminBalance
+            available: targetBalance
           });
         }
 
-        // Create admin wallet withdrawal
+        // Create wallet withdrawal for the target user
         await storage.createWalletTransaction({
-          userId,
+          userId: targetUserId,
           type: "withdrawal",
           amount: validatedData.amount,
-          description: `Transferred to Reserve: ${validatedData.description}`,
+          description: validatedData.description, // Already formatted as "Added from [User]'s wallet by admin"
           date: new Date(validatedData.date),
         });
       }

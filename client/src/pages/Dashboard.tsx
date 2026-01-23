@@ -716,6 +716,8 @@ export default function Dashboard() {
           onOpenChange={setAddMoneyToReserveDialogOpen}
           onSubmit={(data) => addMoneyToReserve(data)}
           adminWalletBalance={parseFloat(balance?.currentBalance || "0")}
+          adminUserId={user.id}
+          adminUserName={user.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : user.email || 'Admin'}
           currency={settings?.currency || "USD"}
         />
       )}

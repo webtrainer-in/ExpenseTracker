@@ -64,7 +64,7 @@ export function useReserve() {
   });
 
   const addMoneyMutation = useMutation({
-    mutationFn: async (data: { amount: number; description: string; date: Date; source: string }) => {
+    mutationFn: async (data: { amount: number; description: string; date: Date; source: string; selectedUserId?: string }) => {
       return apiRequest("POST", "/api/reserve/deposit", data);
     },
     onSuccess: () => {
