@@ -44,7 +44,7 @@ export function ExpenseChart({ type, data, title, currency = "USD" }: ExpenseCha
   return (
     <Card className="p-6">
       <h3 className="text-lg font-semibold mb-4">{title}</h3>
-      <div className="h-80">
+      <div className={type === "category" ? "h-[500px]" : "h-80"}>
         {type === "monthly" ? (
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data}>
@@ -76,7 +76,7 @@ export function ExpenseChart({ type, data, title, currency = "USD" }: ExpenseCha
               <Pie
                 data={data}
                 cx="50%"
-                cy="50%"
+                cy="40%"
                 innerRadius={60}
                 outerRadius={100}
                 paddingAngle={2}
@@ -99,7 +99,7 @@ export function ExpenseChart({ type, data, title, currency = "USD" }: ExpenseCha
               />
               <Legend
                 verticalAlign="bottom"
-                height={36}
+                wrapperStyle={{ paddingTop: "20px" }}
                 formatter={(value, entry: any) => entry.payload.category}
               />
             </PieChart>

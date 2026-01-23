@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated, withAuth } from "./clerkAuth";
-import { insertExpenseSchema, insertCategorySchema, updateCategorySchema, updateSettingsSchema, insertWalletTransactionSchema } from "@shared/schema";
+import { insertExpenseSchema, insertCategorySchema, updateCategorySchema, updateSettingsSchema, insertWalletTransactionSchema, insertReserveTransactionSchema } from "@shared/schema";
 import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -331,6 +331,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Validate only the request body (amount, description, date)
       const validatedData = insertWalletTransactionSchema.parse(req.body);
 
+      // Check if source is "Added from Reserve"
+      const isFromReserve = req.body.description?.startsWith("Added from Reserve");
+
+      if (isFromReserve) {
+        // Check reserve balance
+        const reserve = await storage.getReserveBalance();
+        const reserveBalance = reserve ? parseFloat(reserve.currentBalance) : 0;
+
+        if (reserveBalance < validatedData.amount) {
+          return res.status(400).json({ 
+            message: "Insufficient reserve balance",
+            required: validatedData.amount,
+            available: reserveBalance
+          });
+        }
+      }
+
+      // Create wallet deposit transaction
       const transaction = await storage.createWalletTransaction({
         userId,
         type: "deposit",
@@ -338,6 +356,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         description: validatedData.description,
         date: new Date(validatedData.date),
       });
+
+      // If from reserve, create reserve withdrawal transaction
+      if (isFromReserve) {
+        await storage.createReserveTransaction({
+          type: "withdrawal",
+          amount: validatedData.amount,
+          description: `Transferred to user wallet: ${validatedData.description}`,
+          performedByUserId: userId,
+          relatedWalletTransactionId: transaction.id,
+          date: new Date(validatedData.date),
+        });
+      }
 
       const newBalance = await storage.getWalletBalance(userId);
       
@@ -392,6 +422,111 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching all wallet transactions:", error);
       res.status(500).json({ message: "Failed to fetch wallet transactions" });
+    }
+  });
+
+  // Reserve wallet routes (admin only)
+  app.get("/api/reserve/balance", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.auth.userId;
+      const user = await storage.getUser(userId);
+
+      if (!user || user.role !== "admin") {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+
+      let reserve = await storage.getReserveBalance();
+      if (!reserve) {
+        reserve = await storage.initializeReserveWallet();
+      }
+
+      res.json(reserve);
+    } catch (error) {
+      console.error("Error fetching reserve balance:", error);
+      res.status(500).json({ message: "Failed to fetch reserve balance" });
+    }
+  });
+
+  app.post("/api/reserve/deposit", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.auth.userId;
+      const user = await storage.getUser(userId);
+
+      if (!user || user.role !== "admin") {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+
+      const validatedData = insertReserveTransactionSchema.parse(req.body);
+      const source = req.body.source; // ATM Withdrawal, Added from Wallet, Others
+
+      // If source is "Added from Wallet", deduct from admin's personal wallet
+      if (source === "Added from Wallet") {
+        const adminWallet = await storage.getWalletBalance(userId);
+        const adminBalance = adminWallet ? parseFloat(adminWallet.currentBalance) : 0;
+
+        if (adminBalance < validatedData.amount) {
+          return res.status(400).json({ 
+            message: "Insufficient wallet balance",
+            required: validatedData.amount,
+            available: adminBalance
+          });
+        }
+
+        // Create admin wallet withdrawal
+        await storage.createWalletTransaction({
+          userId,
+          type: "withdrawal",
+          amount: validatedData.amount,
+          description: `Transferred to Reserve: ${validatedData.description}`,
+          date: new Date(validatedData.date),
+        });
+      }
+
+      // Create reserve deposit transaction
+      const transaction = await storage.createReserveTransaction({
+        type: "deposit",
+        amount: validatedData.amount,
+        description: validatedData.description,
+        performedByUserId: userId,
+        date: new Date(validatedData.date),
+      });
+
+      const newBalance = await storage.getReserveBalance();
+
+      res.status(201).json({ 
+        transaction, 
+        newBalance: newBalance?.currentBalance || "0" 
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid deposit data", errors: error.errors });
+      }
+      console.error("Error creating reserve deposit:", error);
+      res.status(500).json({ message: "Failed to add money to reserve" });
+    }
+  });
+
+  app.get("/api/reserve/transactions", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.auth.userId;
+      const user = await storage.getUser(userId);
+
+      if (!user || user.role !== "admin") {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+
+      const { type, startDate, endDate } = req.query;
+
+      const transactions = await storage.getReserveTransactions({
+        type: type as 'deposit' | 'withdrawal' | undefined,
+        startDate: startDate ? new Date(startDate as string) : undefined,
+        endDate: endDate ? new Date(endDate as string) : undefined,
+      });
+
+      res.json(transactions);
+    } catch (error) {
+      console.error("Error fetching reserve transactions:", error);
+      res.status(500).json({ message: "Failed to fetch reserve transactions" });
     }
   });
 

@@ -5,6 +5,8 @@ import {
   settings,
   walletBalances,
   walletTransactions,
+  reserveWallet,
+  reserveTransactions,
   type User,
   type UpsertUser,
   type Expense,
@@ -16,6 +18,9 @@ import {
   type WalletBalance,
   type WalletTransaction,
   type InsertWalletTransaction,
+  type ReserveWallet,
+  type ReserveTransaction,
+  type InsertReserveTransaction,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, gte, lte, sql } from "drizzle-orm";
@@ -87,6 +92,23 @@ export interface IStorage {
     endDate?: Date;
   }): Promise<Array<WalletTransaction & { user: User }>>;
   reverseWalletTransaction(expenseId: string): Promise<void>;
+
+  // Reserve wallet operations
+  getReserveBalance(): Promise<ReserveWallet | undefined>;
+  initializeReserveWallet(): Promise<ReserveWallet>;
+  createReserveTransaction(data: {
+    type: 'deposit' | 'withdrawal';
+    amount: number;
+    description: string;
+    performedByUserId: string;
+    relatedWalletTransactionId?: string;
+    date: Date;
+  }): Promise<ReserveTransaction>;
+  getReserveTransactions(options?: {
+    type?: 'deposit' | 'withdrawal';
+    startDate?: Date;
+    endDate?: Date;
+  }): Promise<ReserveTransaction[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -684,6 +706,105 @@ export class DatabaseStorage implements IStorage {
       description: `Reversed: ${transaction.description}`,
       date: new Date(),
     });
+  }
+
+  // Reserve wallet operations
+  async getReserveBalance(): Promise<ReserveWallet | undefined> {
+    const [reserve] = await db.select().from(reserveWallet).where(eq(reserveWallet.id, 'reserve'));
+    return reserve;
+  }
+
+  async initializeReserveWallet(): Promise<ReserveWallet> {
+    const existing = await this.getReserveBalance();
+    if (existing) {
+      return existing;
+    }
+
+    const [newReserve] = await db
+      .insert(reserveWallet)
+      .values({
+        id: 'reserve',
+        currentBalance: '0',
+      })
+      .returning();
+
+    return newReserve;
+  }
+
+  async createReserveTransaction(data: {
+    type: 'deposit' | 'withdrawal';
+    amount: number;
+    description: string;
+    performedByUserId: string;
+    relatedWalletTransactionId?: string;
+    date: Date;
+  }): Promise<ReserveTransaction> {
+    // Get current reserve balance
+    let reserve = await this.getReserveBalance();
+    if (!reserve) {
+      reserve = await this.initializeReserveWallet();
+    }
+
+    const currentBalance = parseFloat(reserve.currentBalance);
+    const newBalance = data.type === 'deposit' 
+      ? currentBalance + data.amount 
+      : currentBalance - data.amount;
+
+    // Create the transaction
+    const [transaction] = await db
+      .insert(reserveTransactions)
+      .values({
+        type: data.type,
+        amount: data.amount.toString(),
+        description: data.description,
+        performedByUserId: data.performedByUserId,
+        relatedWalletTransactionId: data.relatedWalletTransactionId,
+        balanceAfter: newBalance.toString(),
+        date: data.date,
+      })
+      .returning();
+
+    // Update reserve balance
+    await db
+      .update(reserveWallet)
+      .set({
+        currentBalance: newBalance.toString(),
+        updatedAt: new Date(),
+      })
+      .where(eq(reserveWallet.id, 'reserve'));
+
+    return transaction;
+  }
+
+  async getReserveTransactions(options?: {
+    type?: 'deposit' | 'withdrawal';
+    startDate?: Date;
+    endDate?: Date;
+  }): Promise<ReserveTransaction[]> {
+    const conditions = [];
+
+    if (options?.type) {
+      conditions.push(eq(reserveTransactions.type, options.type));
+    }
+
+    if (options?.startDate) {
+      conditions.push(gte(reserveTransactions.date, options.startDate));
+    }
+
+    if (options?.endDate) {
+      conditions.push(lte(reserveTransactions.date, options.endDate));
+    }
+
+    const query = db
+      .select()
+      .from(reserveTransactions)
+      .orderBy(desc(reserveTransactions.date));
+
+    if (conditions.length > 0) {
+      return await query.where(and(...conditions));
+    }
+
+    return await query;
   }
 }
 

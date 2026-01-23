@@ -25,6 +25,9 @@ export function useWallet() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/wallet/balance"] });
       queryClient.invalidateQueries({ queryKey: ["/api/wallet/transactions"] });
+      // Also invalidate reserve queries in case money was added from reserve
+      queryClient.invalidateQueries({ queryKey: ["/api/reserve/balance"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/reserve/transactions"] });
       toast({
         title: "Success",
         description: "Money added to wallet successfully",

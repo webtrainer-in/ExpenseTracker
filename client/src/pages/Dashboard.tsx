@@ -17,6 +17,8 @@ import { FilterBar } from "@/components/FilterBar";
 import { WalletBalanceCard } from "@/components/WalletBalanceCard";
 import { AddMoneyDialog } from "@/components/AddMoneyDialog";
 import { NegativeBalanceAlert } from "@/components/NegativeBalanceAlert";
+import { ReserveWalletCard } from "@/components/ReserveWalletCard";
+import { AddMoneyToReserveDialog } from "@/components/AddMoneyToReserveDialog";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -24,6 +26,7 @@ import { DollarSign, Calendar, TrendingUp, Plus, FileText, BarChart3, Table } fr
 import type { Expense, User } from "@shared/schema";
 import { useSettings } from "@/hooks/useSettings";
 import { useWallet } from "@/hooks/useWallet";
+import { useReserve } from "@/hooks/useReserve";
 import { formatCurrency } from "@/lib/currency";
 import { exportSummaryToCSV, exportDetailToCSV, exportUserSummaryToCSV } from "@/lib/csvExport";
 
@@ -46,6 +49,7 @@ export default function Dashboard() {
   const [summarySubTab, setSummarySubTab] = useState("category");
   const [categorySummaryUserFilter, setCategorySummaryUserFilter] = useState("all");
   const [addMoneyDialogOpen, setAddMoneyDialogOpen] = useState(false);
+  const [addMoneyToReserveDialogOpen, setAddMoneyToReserveDialogOpen] = useState(false);
   
   // Initialize with current month
   const now = new Date();
@@ -54,6 +58,13 @@ export default function Dashboard() {
 
   // Wallet hook
   const { balance, addMoney, isLoading: walletLoading } = useWallet();
+
+  // Reserve wallet hook (admin only)
+  const { 
+    balance: reserveBalance, 
+    addMoney: addMoneyToReserve, 
+    isLoadingBalance: reserveLoading 
+  } = useReserve();
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -480,13 +491,7 @@ export default function Dashboard() {
                 
                 {/* Wallet Balance Section */}
                 <div className="mt-6">
-                  <WalletBalanceCard
-                    balance={parseFloat(balance?.currentBalance || "0")}
-                    currency={settings?.currency || "USD"}
-                    onAddMoney={() => setAddMoneyDialogOpen(true)}
-                    isLoading={walletLoading}
-                  />
-                  
+                  {/* Negative Balance Alert */}
                   {balance && parseFloat(balance.currentBalance) < 0 && (
                     <NegativeBalanceAlert
                       balance={parseFloat(balance.currentBalance)}
@@ -494,6 +499,26 @@ export default function Dashboard() {
                       onAddMoney={() => setAddMoneyDialogOpen(true)}
                     />
                   )}
+
+                  {/* Wallet Cards Grid */}
+                  <div className={`grid gap-4 ${user?.role === "admin" ? "grid-cols-1 md:grid-cols-2" : "grid-cols-1"} mt-4`}>
+                    <WalletBalanceCard
+                      balance={parseFloat(balance?.currentBalance || "0")}
+                      currency={settings?.currency || "USD"}
+                      onAddMoney={() => setAddMoneyDialogOpen(true)}
+                      isLoading={walletLoading}
+                    />
+                    
+                    {/* Reserve Wallet Card (Admin Only) */}
+                    {user?.role === "admin" && (
+                      <ReserveWalletCard
+                        balance={parseFloat(reserveBalance?.currentBalance || "0")}
+                        currency={settings?.currency || "USD"}
+                        onAddMoney={() => setAddMoneyToReserveDialogOpen(true)}
+                        isLoading={reserveLoading}
+                      />
+                    )}
+                  </div>
                 </div>
               </>
             ) : (
@@ -684,6 +709,16 @@ export default function Dashboard() {
         onOpenChange={setAddMoneyDialogOpen}
         onSubmit={(data) => addMoney(data)}
       />
+
+      {user?.role === "admin" && (
+        <AddMoneyToReserveDialog
+          open={addMoneyToReserveDialogOpen}
+          onOpenChange={setAddMoneyToReserveDialogOpen}
+          onSubmit={(data) => addMoneyToReserve(data)}
+          adminWalletBalance={parseFloat(balance?.currentBalance || "0")}
+          currency={settings?.currency || "USD"}
+        />
+      )}
     </div>
   );
 }
