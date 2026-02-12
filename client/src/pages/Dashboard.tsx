@@ -746,17 +746,22 @@ export default function Dashboard() {
 
           {/* Wallet Reports Tab */}
           <TabsContent value="wallet-reports" className="space-y-6">
-            <div className="space-y-6">
-              <div>
-                <h2 className="text-2xl font-bold mb-4">Wallet Transaction Reports</h2>
-                <p className="text-muted-foreground mb-6">
-                  View and export transaction history for personal and reserve wallets
-                </p>
-              </div>
+            <div>
+              <h2 className="text-2xl font-bold mb-2">Wallet Transaction Reports</h2>
+              <p className="text-muted-foreground mb-6">
+                View and export transaction history for personal and reserve wallets
+              </p>
+            </div>
 
-              {/* Personal Wallet Transactions */}
-              <div className="space-y-4">
-                <h3 className="text-xl font-semibold">Personal Wallet Transactions</h3>
+            {/* Nested Tabs for Personal and Reserve Wallets */}
+            <Tabs defaultValue="personal" className="space-y-4">
+              <TabsList>
+                <TabsTrigger value="personal">Personal Wallet</TabsTrigger>
+                {isAdmin && <TabsTrigger value="reserve">Reserve Wallet</TabsTrigger>}
+              </TabsList>
+
+              {/* Personal Wallet Tab */}
+              <TabsContent value="personal" className="space-y-4">
                 {isAdmin ? (
                   <WalletTransactionsTable
                     transactions={walletTransactions}
@@ -769,20 +774,19 @@ export default function Dashboard() {
                     Only administrators can view all wallet transactions
                   </div>
                 )}
-              </div>
+              </TabsContent>
 
-              {/* Reserve Wallet Transactions (Admin Only) */}
+              {/* Reserve Wallet Tab (Admin Only) */}
               {isAdmin && (
-                <div className="space-y-4">
-                  <h3 className="text-xl font-semibold">Reserve Wallet Transactions</h3>
+                <TabsContent value="reserve" className="space-y-4">
                   <ReserveTransactionsTable
                     transactions={reserveTransactions}
                     currency={settings?.currency || "USD"}
                     users={allUsers}
                   />
-                </div>
+                </TabsContent>
               )}
-            </div>
+            </Tabs>
           </TabsContent>
         </Tabs>
       </main>
