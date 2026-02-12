@@ -19,10 +19,12 @@ import { AddMoneyDialog } from "@/components/AddMoneyDialog";
 import { NegativeBalanceAlert } from "@/components/NegativeBalanceAlert";
 import { ReserveWalletCard } from "@/components/ReserveWalletCard";
 import { AddMoneyToReserveDialog } from "@/components/AddMoneyToReserveDialog";
+import { WalletTransactionsTable } from "@/components/WalletTransactionsTable";
+import { ReserveTransactionsTable } from "@/components/ReserveTransactionsTable";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { DollarSign, Calendar, TrendingUp, Plus, FileText, BarChart3, Table } from "lucide-react";
+import { DollarSign, Calendar, TrendingUp, Plus, FileText, BarChart3, Table, Wallet } from "lucide-react";
 import type { Expense, User } from "@shared/schema";
 import { useSettings } from "@/hooks/useSettings";
 import { useWallet } from "@/hooks/useWallet";
@@ -63,8 +65,21 @@ export default function Dashboard() {
   const { 
     balance: reserveBalance, 
     addMoney: addMoneyToReserve, 
+    transactions: reserveTransactions = [],
     isLoadingBalance: reserveLoading 
   } = useReserve();
+
+  // Fetch wallet transactions for reports
+  const { data: walletTransactions = [] } = useQuery<any[]>({
+    queryKey: ["/api/wallet/transactions/all"],
+    enabled: isAuthenticated && user?.role === "admin",
+  });
+
+  // Fetch all users for filtering
+  const { data: allUsers = [] } = useQuery<User[]>({
+    queryKey: ["/api/users"],
+    enabled: isAuthenticated && user?.role === "admin",
+  });
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -382,6 +397,10 @@ export default function Dashboard() {
               <Table className="h-4 w-4 mr-2" />
               Expense Summary
             </TabsTrigger>
+            <TabsTrigger value="wallet-reports" data-testid="tab-wallet-reports">
+              <Wallet className="h-4 w-4 mr-2" />
+              Wallet Reports
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="data-entry" className="space-y-4">
@@ -687,6 +706,47 @@ export default function Dashboard() {
                 No expense data available yet. Add some expenses to see charts and insights.
               </div>
             )}
+          </TabsContent>
+
+          {/* Wallet Reports Tab */}
+          <TabsContent value="wallet-reports" className="space-y-6">
+            <div className="space-y-6">
+              <div>
+                <h2 className="text-2xl font-bold mb-4">Wallet Transaction Reports</h2>
+                <p className="text-muted-foreground mb-6">
+                  View and export transaction history for personal and reserve wallets
+                </p>
+              </div>
+
+              {/* Personal Wallet Transactions */}
+              <div className="space-y-4">
+                <h3 className="text-xl font-semibold">Personal Wallet Transactions</h3>
+                {isAdmin ? (
+                  <WalletTransactionsTable
+                    transactions={walletTransactions}
+                    currency={settings?.currency || "USD"}
+                    showUserColumn={true}
+                    users={allUsers}
+                  />
+                ) : (
+                  <div className="text-center py-12 text-muted-foreground">
+                    Only administrators can view all wallet transactions
+                  </div>
+                )}
+              </div>
+
+              {/* Reserve Wallet Transactions (Admin Only) */}
+              {isAdmin && (
+                <div className="space-y-4">
+                  <h3 className="text-xl font-semibold">Reserve Wallet Transactions</h3>
+                  <ReserveTransactionsTable
+                    transactions={reserveTransactions}
+                    currency={settings?.currency || "USD"}
+                    users={allUsers}
+                  />
+                </div>
+              )}
+            </div>
           </TabsContent>
         </Tabs>
       </main>
