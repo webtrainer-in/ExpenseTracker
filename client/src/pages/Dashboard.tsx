@@ -16,6 +16,7 @@ import { EditExpenseDialog } from "@/components/EditExpenseDialog";
 import { FilterBar } from "@/components/FilterBar";
 import { WalletBalanceCard } from "@/components/WalletBalanceCard";
 import { AddMoneyDialog } from "@/components/AddMoneyDialog";
+import { WithdrawMoneyDialog } from "@/components/WithdrawMoneyDialog";
 import { NegativeBalanceAlert } from "@/components/NegativeBalanceAlert";
 import { ReserveWalletCard } from "@/components/ReserveWalletCard";
 import { AddMoneyToReserveDialog } from "@/components/AddMoneyToReserveDialog";
@@ -51,6 +52,7 @@ export default function Dashboard() {
   const [summarySubTab, setSummarySubTab] = useState("category");
   const [categorySummaryUserFilter, setCategorySummaryUserFilter] = useState("all");
   const [addMoneyDialogOpen, setAddMoneyDialogOpen] = useState(false);
+  const [withdrawMoneyDialogOpen, setWithdrawMoneyDialogOpen] = useState(false);
   const [addMoneyToReserveDialogOpen, setAddMoneyToReserveDialogOpen] = useState(false);
   
   // Initialize with current month
@@ -59,7 +61,7 @@ export default function Dashboard() {
   const [selectedMonthYear, setSelectedMonthYear] = useState(defaultMonth);
 
   // Wallet hook
-  const { balance, addMoney, isLoading: walletLoading } = useWallet();
+  const { balance, addMoney, withdrawMoney, isLoading: walletLoading } = useWallet();
 
   // Reserve wallet hook (admin only)
   const { 
@@ -561,6 +563,7 @@ export default function Dashboard() {
                       balance={parseFloat(balance?.currentBalance || "0")}
                       currency={settings?.currency || "USD"}
                       onAddMoney={() => setAddMoneyDialogOpen(true)}
+                      onWithdraw={() => setWithdrawMoneyDialogOpen(true)}
                       isLoading={walletLoading}
                     />
                     
@@ -808,6 +811,13 @@ export default function Dashboard() {
         open={addMoneyDialogOpen}
         onOpenChange={setAddMoneyDialogOpen}
         onSubmit={(data) => addMoney(data)}
+      />
+
+      <WithdrawMoneyDialog
+        open={withdrawMoneyDialogOpen}
+        onOpenChange={setWithdrawMoneyDialogOpen}
+        onSubmit={(data) => withdrawMoney(data)}
+        currentBalance={parseFloat(balance?.currentBalance || "0")}
       />
 
       {user?.role === "admin" && (

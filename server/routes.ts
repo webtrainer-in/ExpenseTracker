@@ -417,6 +417,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/wallet/withdraw", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.auth.userId;
+      
+      // Validate request body
+      const validatedData = insertWalletTransactionSchema.parse(req.body);
+
+      // Check current wallet balance
+      const currentBalance = await storage.getWalletBalance(userId);
+      const balance = currentBalance ? parseFloat(currentBalance.currentBalance) : 0;
+
+      if (balance < validatedData.amount) {
+        return res.status(400).json({ 
+          message: "Insufficient wallet balance",
+          required: validatedData.amount,
+          available: balance
+        });
+      }
+
+      // Create wallet withdrawal transaction
+      const transaction = await storage.createWalletTransaction({
+        userId,
+        type: "withdrawal",
+        amount: validatedData.amount,
+        description: validatedData.description,
+        date: new Date(validatedData.date),
+      });
+
+      const newBalance = await storage.getWalletBalance(userId);
+      
+      res.status(201).json({ 
+        transaction, 
+        currentBalance: newBalance?.currentBalance || "0" 
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid withdrawal data", errors: error.errors });
+      }
+      console.error("Error creating withdrawal:", error);
+      res.status(500).json({ message: "Failed to withdraw money from wallet" });
+    }
+  });
+
+
   app.get("/api/wallet/transactions", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.auth.userId;

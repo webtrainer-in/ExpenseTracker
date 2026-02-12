@@ -1,12 +1,13 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Wallet, Plus } from "lucide-react";
+import { Wallet, Plus, Minus } from "lucide-react";
 import { formatCurrency } from "@/lib/currency";
 
 interface WalletBalanceCardProps {
   balance: number;
   currency: string;
   onAddMoney: () => void;
+  onWithdraw: () => void;
   isLoading?: boolean;
 }
 
@@ -14,6 +15,7 @@ export function WalletBalanceCard({
   balance,
   currency,
   onAddMoney,
+  onWithdraw,
   isLoading = false,
 }: WalletBalanceCardProps) {
   const isNegative = balance < 0;
@@ -48,6 +50,16 @@ export function WalletBalanceCard({
               >
                 <Plus className="h-4 w-4 mr-1" />
                 Add Money
+              </Button>
+              <Button
+                onClick={onWithdraw}
+                size="sm"
+                variant="outline"
+                className="flex-1"
+                data-testid="button-withdraw-money"
+              >
+                <Minus className="h-4 w-4 mr-1" />
+                Withdraw
               </Button>
             </div>
           </>

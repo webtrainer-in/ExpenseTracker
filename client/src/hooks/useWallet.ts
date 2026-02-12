@@ -53,11 +53,49 @@ export function useWallet() {
     },
   });
 
+  // Withdraw money mutation
+  const withdrawMoneyMutation = useMutation({
+    mutationFn: async (data: { amount: number; description: string; date: Date }) => {
+      await apiRequest("POST", "/api/wallet/withdraw", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/wallet/balance"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/wallet/transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/wallet/transactions/all"] });
+      toast({
+        title: "Success",
+        description: "Money withdrawn from wallet successfully",
+      });
+    },
+    onError: (error: any) => {
+      if (isUnauthorizedError(error)) {
+        toast({
+          title: "Unauthorized",
+          description: "You are logged out. Logging in again...",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.href = "/api/login";
+        }, 500);
+        return;
+      }
+      const message = error.message || "Failed to withdraw money from wallet";
+      toast({
+        title: "Error",
+        description: message,
+        variant: "destructive",
+      });
+    },
+  });
+
+
   return {
     balance,
     transactions,
     isLoading: balanceLoading || transactionsLoading,
     addMoney: addMoneyMutation.mutate,
     isAddingMoney: addMoneyMutation.isPending,
+    withdrawMoney: withdrawMoneyMutation.mutate,
+    isWithdrawingMoney: withdrawMoneyMutation.isPending,
   };
 }
