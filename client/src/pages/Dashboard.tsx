@@ -384,7 +384,43 @@ export default function Dashboard() {
 
       <main className="max-w-7xl mx-auto p-6 space-y-8">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList data-testid="tabs-main">
+          {/* Mobile: Dropdown Navigation */}
+          <div className="block md:hidden">
+            <Select value={activeTab} onValueChange={setActiveTab}>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="data-entry">
+                  <div className="flex items-center">
+                    <FileText className="h-4 w-4 mr-2" />
+                    Expense Book
+                  </div>
+                </SelectItem>
+                <SelectItem value="dashboard">
+                  <div className="flex items-center">
+                    <BarChart3 className="h-4 w-4 mr-2" />
+                    Dashboard
+                  </div>
+                </SelectItem>
+                <SelectItem value="summary">
+                  <div className="flex items-center">
+                    <Table className="h-4 w-4 mr-2" />
+                    Expense Summary
+                  </div>
+                </SelectItem>
+                <SelectItem value="wallet-reports">
+                  <div className="flex items-center">
+                    <Wallet className="h-4 w-4 mr-2" />
+                    Wallet Reports
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Desktop: Tab Navigation */}
+          <TabsList data-testid="tabs-main" className="hidden md:inline-flex">
             <TabsTrigger value="data-entry" data-testid="tab-data-entry">
               <FileText className="h-4 w-4 mr-2" />
               Expense Book
